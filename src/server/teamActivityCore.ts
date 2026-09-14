@@ -1,0 +1,31 @@
+export function describeAuditAction(action: string, metadata: Record<string, unknown>): string {
+  const name = String(metadata.name || metadata.title || "").trim();
+  const documentName = String(metadata.documentName || "").trim();
+  const suffix = name ? ` ${name}` : "";
+  if (action === "finance.payment.created") return `criou o pagamento${suffix}`;
+  if (action === "finance.payment.updated") return `atualizou o pagamento${suffix}`;
+  if (action === "finance.payment.deleted") return `eliminou o pagamento${suffix}`;
+  if (action === "finance.payment.paid") return `marcou como pago${suffix}`;
+  if (action === "task.created") return `criou a tarefa${suffix}`;
+  if (action === "task.updated") return metadata.completed ? `concluiu a tarefa${suffix}` : `atualizou a tarefa${suffix}`;
+  if (action === "meeting.created") return `agendou a reunião${suffix}`;
+  if (action === "meeting.updated") return `atualizou a reunião${suffix}`;
+  if (action === "profile.updated") return "atualizou o perfil";
+  if (action === "profile.created") return "configurou o perfil";
+  if (action === "client.created") return `criou o cliente${suffix}`;
+  if (action === "client.updated") return `atualizou o cliente${suffix}`;
+  if (action === "client.logo.updated") return name ? `atualizou o logótipo de ${name}` : "atualizou o logótipo de um cliente";
+  if (action === "client.document.uploaded") return `carregou${documentName ? ` ${documentName}` : " um documento"}${name ? ` na ficha de ${name}` : " numa ficha de cliente"}`;
+  if (action === "client.deleted") return `eliminou o cliente${suffix}`;
+  if (action === "document.uploaded") return `carregou o documento${suffix}`;
+  if (action === "finance.revenue.created") return `registou revenue${suffix}`;
+  if (action === "finance.revenue.updated") return `atualizou o vencimento${suffix}`;
+  if (action === "finance.revenue.deleted") return `eliminou o vencimento${suffix}`;
+  if (action === "finance.revenue.received") return `confirmou o recebimento${suffix}`;
+  if (action === "settings.updated") return "atualizou as definições pessoais";
+  if (action === "google.workspace.connected") return "ligou o Google Calendar e Tasks";
+  if (action === "google.workspace.disconnected") return "desligou o Google Calendar e Tasks";
+  if (action === "google.drive.connected") return `ligou o Google Drive${suffix}`;
+  if (action === "google.drive.disconnected") return "desligou o Google Drive";
+  return "publicou uma alteração no AXION OFFICE";
+}

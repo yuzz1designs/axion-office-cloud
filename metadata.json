@@ -1,0 +1,6 @@
+{
+  "name": "AXION OFFICE",
+  "description": "O sistema operativo interno da AXION: Centro de comando, CRM, tarefas e assistente AI (AIVA).",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}

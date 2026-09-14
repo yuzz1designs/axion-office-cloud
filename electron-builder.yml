@@ -1,0 +1,32 @@
+appId: com.axion.office
+productName: AXION OFFICE
+protocols:
+  - name: AXION OFFICE
+    schemes:
+      - axion-office
+directories:
+  output: desktop-release
+files:
+  - desktop/**
+  - desktop-build/**
+  - dist/**
+  - package.json
+  - '!node_modules/@tailwindcss/**'
+  - '!node_modules/lightningcss*/**'
+  - '!**/.env*'
+  - '!**/.axion-local/**'
+extraMetadata:
+  main: desktop/main.cjs
+extraResources:
+  - from: companion/bin/AXIONControl.app
+    to: AXIONControl.app
+mac:
+  icon: assets/app-icon.png
+  target:
+    - target: dir
+      arch:
+        - universal
+  category: public.app-category.productivity
+  identity: null
+  extendInfo:
+    NSMicrophoneUsageDescription: A AIVA utiliza o microfone quando ativar a conversa por voz.
