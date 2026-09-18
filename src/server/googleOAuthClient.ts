@@ -17,7 +17,7 @@ export interface GoogleOAuthTokens {
 type FetchImplementation = typeof fetch;
 
 export class GoogleOAuthClient {
-  constructor(private readonly config: GoogleOAuthConfig, private readonly fetchImpl: FetchImplementation = fetch) {}
+  constructor(private readonly config: GoogleOAuthConfig, private readonly fetchImpl: FetchImplementation = (input, init) => globalThis.fetch(input, init)) {}
 
   private async requestToken(parameters: Record<string, string>) {
     const response = await this.fetchImpl(TOKEN_URL, {

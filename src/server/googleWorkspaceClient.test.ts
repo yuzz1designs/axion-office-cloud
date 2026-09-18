@@ -23,3 +23,12 @@ test("cria a lista AXION OFFICE quando ainda não existe", async () => {
   const client = new GoogleWorkspaceClient("access-token", fakeFetch);
   assert.equal(await client.ensureAxionTaskList(), "new-list");
 });
+
+
+test("default fetch preserves the Worker global receiver for Workspace", async (t) => {
+  t.mock.method(globalThis, "fetch", async function (this: unknown) {
+    assert.equal(this, globalThis);
+    return new Response(JSON.stringify({ items: [{ id: "list-axion", title: "AXION OFFICE" }] }));
+  });
+  assert.equal(await new GoogleWorkspaceClient("access").ensureAxionTaskList(), "list-axion");
+});

@@ -45,3 +45,19 @@ test("obtém apenas o email verificado da conta", async () => {
   const client = new GoogleOAuthClient(config, async () => new Response(JSON.stringify({ email: "axion@example.com", email_verified: true }), { status: 200 }));
   assert.equal(await client.getUserEmail("access-token"), "axion@example.com");
 });
+
+
+test("default fetch preserves the Worker global receiver throughout OAuth", async (t) => {
+  t.mock.method(globalThis, "fetch", async function (this: unknown, input: RequestInfo | URL) {
+    assert.equal(this, globalThis);
+    const url = String(input);
+    return new Response(JSON.stringify(url.includes("userinfo")
+      ? { email: "axion@example.com", email_verified: true }
+      : { access_token: "access", refresh_token: "refresh", scope: "email" }));
+  });
+  const client = new GoogleOAuthClient(config);
+  assert.equal((await client.exchangeAuthorizationCode("code")).refreshToken, "refresh");
+  assert.equal(await client.refreshAccessToken("refresh"), "access");
+  assert.equal(await client.getUserEmail("access"), "axion@example.com");
+  assert.equal(await client.revokeGrant("refresh"), true);
+});

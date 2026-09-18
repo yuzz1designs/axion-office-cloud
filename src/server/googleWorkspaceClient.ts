@@ -4,7 +4,7 @@ const TASK_LISTS_URL = "https://tasks.googleapis.com/tasks/v1/users/@me/lists";
 type FetchImplementation = typeof fetch;
 
 export class GoogleWorkspaceClient {
-  constructor(private readonly accessToken: string, private readonly fetchImpl: FetchImplementation = fetch) {}
+  constructor(private readonly accessToken: string, private readonly fetchImpl: FetchImplementation = (input, init) => globalThis.fetch(input, init)) {}
 
   private async request<T>(url: string, init: RequestInit = {}): Promise<T> {
     const response = await this.fetchImpl(url, {
