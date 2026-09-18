@@ -27,6 +27,8 @@ import NotificationsScreen from "../notifications/NotificationsScreen";
 import SidebarNav, { NavTabId } from "../navigation/SidebarNav";
 import SettingsPage from "../settings/SettingsPage";
 import MeetingInviteBanner from "./MeetingInviteBanner";
+import OfficePresence, { useOfficePresence } from "./OfficePresence";
+import { officeSessionTime } from "../../lib/officePresence";
 import type { AxionProfile } from "../../types/profile";
 import type { FinancePayload } from "../../types/finance";
 import type { TeamActivityItem } from "../../server/teamActivityStore";
@@ -97,8 +99,8 @@ export default function CommandCenter({
   const [teamActivities, setTeamActivities] = useState<TeamActivityItem[]>([]);
   const [readNotificationKeys, setReadNotificationKeys] = useState<Set<string>>(new Set());
   const [currentTime, setCurrentTime] = useState<Date>(() => new Date());
-  const [sessionStartedAt] = useState(() => Date.now());
-  const [sessionDurationSeconds, setSessionDurationSeconds] = useState(0);
+  const officePresence = useOfficePresence(profile?.id);
+  const ownPresence = officePresence.snapshot?.members.find((member) => member.userId === profile?.id);
   const [systemBooted, setSystemBooted] = useState(false);
   const [mousePos, setMousePos] = useState({ x: 0, y: 0 });
 
@@ -187,7 +189,6 @@ export default function CommandCenter({
     const timer = setInterval(() => {
       const now = Date.now();
       setCurrentTime(new Date(now));
-      setSessionDurationSeconds(Math.floor((now - sessionStartedAt) / 1000));
     }, 1000);
     
     // Start the panel reveal as soon as the dashboard mounts.
@@ -199,7 +200,7 @@ export default function CommandCenter({
       clearInterval(timer);
       clearTimeout(bootTimer);
     };
-  }, [sessionStartedAt]);
+  }, []);
 
   useEffect(() => {
     let active = true;
@@ -234,13 +235,6 @@ export default function CommandCenter({
     const timer = window.setInterval(() => void refreshOverview(false), 30_000);
     return () => { active = false; window.clearInterval(timer); window.removeEventListener("axion:realtime", realtimeRefresh); };
   }, []);
-
-  const formatSessionDuration = (totalSeconds: number) => {
-    const hours = Math.floor(totalSeconds / 3600);
-    const minutes = Math.floor((totalSeconds % 3600) / 60);
-    const seconds = totalSeconds % 60;
-    return [hours, minutes, seconds].map((value) => String(value).padStart(2, "0")).join(":");
-  };
 
   // Track mouse coordinates to provide subtle parallax on the central Core logo
   const handleMouseMove = (e: React.MouseEvent) => {
@@ -743,7 +737,7 @@ export default function CommandCenter({
               <div className="text-xs font-mono tracking-widest text-white/30 uppercase">{t("home.session")}</div>
               <div className="text-2xl font-mono font-medium text-white flex items-center gap-2.5 mt-1 justify-end">
                 <Clock size={16} style={{ color: currentAccent.hex }} className="animate-pulse" />
-                <span>{formatSessionDuration(sessionDurationSeconds)}</span>
+                <span>{ownPresence && !officePresence.error ? officeSessionTime(ownPresence, currentTime.getTime() + officePresence.clockOffset) || "—" : "—"}</span>
               </div>
             </div>
 
@@ -760,6 +754,8 @@ export default function CommandCenter({
           </motion.div>
 
         </div>
+
+        <OfficePresence presence={officePresence} currentUserId={profile?.id} now={currentTime.getTime()} />
 
         {/* ==================== MIDDLE ROW (CENTRAL CORE & REFINED SPACIOUS LAYOUT) ==================== */}
         <div className="flex-1 flex flex-col lg:flex-row items-center justify-between gap-8 lg:gap-14 my-2 relative w-full">
