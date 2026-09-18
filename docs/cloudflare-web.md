@@ -33,3 +33,14 @@ Enable the relevant Drive, Calendar and Tasks APIs and grant the three users acc
 - `/api/aiva/status`: HTTP 503 with `AIVA_DISABLED`.
 - Complete a Google login from the public site and verify it returns to the dashboard. Repeat using each partner's own account.
 - Link Google from the authenticated profile; verify status, sync and disconnect. Repeat after deployment to verify persistence. No integration should be reported verified solely because the configuration fields are present.
+
+## Verification on 2026-09-17/18
+
+Published Worker version `e2827a10-d5bb-4c89-bfe1-05cb6c1193b8`; cloud source commit `2c776d0`.
+
+154 automated tests, TypeScript and production build passed. The live API returned JSON, set a Secure/HttpOnly session cookie, and correctly required auth for protected endpoints. A temporary admin-generated test session (no email sent, revoked after the check) successfully read profile, finance, meetings, clients, notifications, activity, CRM and DOCS. This validates the backend session bridge, not interactive Google login.
+
+Remaining external configuration was directly checked:
+- A Supabase OAuth cancellation test redirected to `http://localhost:3000`, proving the public origin still needs to be allowed in Supabase Auth URL Configuration.
+- Both Google integration authorization URLs returned `redirect_uri_mismatch`; the two web callback URIs above need adding to the integration OAuth client in Google Cloud.
+- Google Drive / Workspace status is `configured: true, connected: false`; no personal grant was manufactured or copied into the cloud. Each user must consent after callbacks are fixed.
