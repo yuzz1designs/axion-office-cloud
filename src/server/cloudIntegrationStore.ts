@@ -19,7 +19,7 @@ export function encryptIntegration(value: unknown, identity: string) {
   const iv = randomBytes(12);
   const cipher = createCipheriv("aes-256-gcm", key(), iv);
   cipher.setAAD(Buffer.from(identity));
-  const encrypted = Buffer.concat([cipher.update(JSON.stringify(value)), cipher.final()]);
+  const encrypted = Buffer.concat([cipher.update(Buffer.from(JSON.stringify(value), "utf8")), cipher.final()]);
   return ["v1", iv.toString("base64url"), cipher.getAuthTag().toString("base64url"), encrypted.toString("base64url")].join(".");
 }
 export function decryptIntegration<T>(value: string, identity: string): T {
