@@ -1,0 +1,21 @@
+{
+  "$schema": "node_modules/wrangler/config-schema.json",
+  "name": "axion-office-cloud",
+  "main": "worker.ts",
+  "compatibility_date": "2026-09-17",
+  "compatibility_flags": ["nodejs_compat"],
+  "assets": {
+    "directory": "./dist",
+    "binding": "ASSETS",
+    "not_found_handling": "single-page-application",
+    "run_worker_first": ["/api/*"]
+  },
+  "vars": {
+    "NODE_ENV": "production",
+    "AXION_RUNTIME": "cloudflare",
+    "AXION_AIVA_ENABLED": "false",
+    "GOOGLE_OAUTH_REDIRECT_URI": "https://axion-office-cloud.nelsonafonsoprofissional.workers.dev/api/google/oauth/callback",
+    "GOOGLE_WORKSPACE_OAUTH_REDIRECT_URI": "https://axion-office-cloud.nelsonafonsoprofissional.workers.dev/api/google/workspace/oauth/callback"
+  },
+  "observability": { "enabled": true }
+}

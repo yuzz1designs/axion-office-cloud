@@ -1,13 +1,11 @@
 import React, { useState, useEffect, useMemo, useRef } from "react";
-import { motion, AnimatePresence } from "motion/react";
-import { INITIAL_STATE } from "../../data/mockData";
+import { motion, AnimatePresence, useReducedMotion } from "motion/react";
 import { 
   DEFAULT_APPEARANCE,
   DEFAULT_COMMAND_CENTER,
   ACCENT_COLOR_OPTIONS
 } from "../../data/settingsMockData";
 import { 
-  MOCK_MEETING_INVITES, 
   CalendarEvent,
   IntegratedTask,
   MeetingAta, 
@@ -63,6 +61,14 @@ interface CommandCenterProps {
   onCommandCenterConfigChange?: (config: CommandCenterConfig) => void;
   languageRegion?: LanguageRegionSettings;
   onLanguageRegionChange?: (settings: LanguageRegionSettings) => void;
+  aivaEnabled?: boolean;
+}
+
+function AivaNavigationBridge({ onNavigate, onClient, onDocument, onMeeting, section }: { onNavigate: (section: NavTabId) => void; onClient: (query: string) => void; onDocument: (query: string) => void; onMeeting: (id: string) => void; section: NavTabId }) {
+  const session = useAivaSession();
+  useEffect(() => session.registerNavigation(onNavigate, onClient, onDocument, onMeeting), [session.registerNavigation, onNavigate, onClient, onDocument, onMeeting]);
+  useEffect(() => session.setCurrentSection(section), [section, session.setCurrentSection]);
+  return null;
 }
 
 export default function CommandCenter({ 
@@ -77,9 +83,10 @@ export default function CommandCenter({
   onCommandCenterConfigChange,
   languageRegion,
   onLanguageRegionChange,
+  aivaEnabled = false,
 }: CommandCenterProps) {
   const { language, t } = useLanguage();
-  const aivaSession = useAivaSession();
+  const reducedMotion = useReducedMotion();
   const [activeTab, setActiveTab] = useState<NavTabId>("overview");
   const [aivaClientQuery, setAivaClientQuery] = useState("");
   const [aivaDocumentQuery, setAivaDocumentQuery] = useState("");
@@ -95,19 +102,15 @@ export default function CommandCenter({
   const [systemBooted, setSystemBooted] = useState(false);
   const [mousePos, setMousePos] = useState({ x: 0, y: 0 });
 
-  useEffect(() => aivaSession.registerNavigation(
-    (section) => setActiveTab(section),
-    (query) => setAivaClientQuery(query),
-    (query) => setAivaDocumentQuery(query),
-    (meetingId) => setSelectedMeetingId(meetingId),
-  ), [aivaSession.registerNavigation]);
-  useEffect(() => aivaSession.setCurrentSection(activeTab), [activeTab, aivaSession.setCurrentSection]);
-
   // Shared Global Meeting & Calendar States
   const [events, setEvents] = useState<CalendarEvent[]>([]);
   const [atas, setAtas] = useState<MeetingAta[]>([]);
   const [meetingInvites, setMeetingInvites] = useState<MeetingInviteNotification[]>([]);
   const [selectedMeetingId, setSelectedMeetingId] = useState<string>("");
+  const navigateFromAiva = React.useCallback((section: NavTabId) => setActiveTab(section), []);
+  const openClientFromAiva = React.useCallback((query: string) => setAivaClientQuery(query), []);
+  const openDocumentFromAiva = React.useCallback((query: string) => setAivaDocumentQuery(query), []);
+  const openMeetingFromAiva = React.useCallback((id: string) => setSelectedMeetingId(id), []);
 
   // Handler for new meeting invite notifications broadcasted by leadership
   const handleBroadcastMeetingInvite = (invite: MeetingInviteNotification) => {
@@ -187,10 +190,10 @@ export default function CommandCenter({
       setSessionDurationSeconds(Math.floor((now - sessionStartedAt) / 1000));
     }, 1000);
     
-    // Simulate initial system boot sequence delay
+    // Start the panel reveal as soon as the dashboard mounts.
     const bootTimer = setTimeout(() => {
       setSystemBooted(true);
-    }, 400);
+    }, 0);
 
     return () => {
       clearInterval(timer);
@@ -335,20 +338,22 @@ export default function CommandCenter({
 
   // Transition variants for staggered boots
   const itemVariants = {
-    hidden: { opacity: 0, y: 15, filter: "blur(4px)" },
+    hidden: { opacity: 0, y: reducedMotion ? 0 : 22, filter: reducedMotion ? "blur(0px)" : "blur(4px)" },
     visible: (custom: number) => ({
       opacity: 1,
       y: 0,
       filter: "blur(0px)",
       transition: {
-        delay: 0.2 + custom * 0.15,
-        duration: 1.0,
+        delay: reducedMotion ? 0 : custom * 0.065,
+        duration: reducedMotion ? 0.15 : 0.65,
         ease: [0.16, 1, 0.3, 1]
       }
     })
   };
 
   return (
+    <>
+      {aivaEnabled && <AivaNavigationBridge onNavigate={navigateFromAiva} onClient={openClientFromAiva} onDocument={openDocumentFromAiva} onMeeting={openMeetingFromAiva} section={activeTab} />}
     <div 
       onMouseMove={handleMouseMove}
       className={`relative w-screen h-screen overflow-hidden flex flex-col justify-between pl-20 md:pl-28 pr-6 md:pr-10 py-6 md:py-8 select-none transition-colors duration-500 ${
@@ -364,6 +369,7 @@ export default function CommandCenter({
         onOpenProfile={() => setActiveTab("profile")}
         profile={profile}
         profileRequired={profileRequired}
+        aivaEnabled={aivaEnabled}
         accentColor={currentAccent}
         isLight={isLight}
       />
@@ -608,7 +614,7 @@ export default function CommandCenter({
                 onLanguageRegionChange={onLanguageRegionChange}
               />
           </motion.div>
-        ) : activeTab === "aiva" ? (
+        ) : aivaEnabled && activeTab === "aiva" ? (
           <AivaPanelTransition key="aiva-tab-view" accentColor={currentAccent.hex}>
             <AivaOverviewScreen 
               accentColor={currentAccent}
@@ -712,7 +718,7 @@ export default function CommandCenter({
             </div>
             
             <h1 className="text-2xl md:text-3xl font-sans font-bold tracking-tight text-white mt-2 leading-none">
-              {getGreeting()}, <span className="text-white/80 font-normal">{(profile?.displayName || profile?.name || INITIAL_STATE.user.name).toUpperCase()}</span>
+              {getGreeting()}, <span className="text-white/80 font-normal">{(profile?.displayName || profile?.name || "UTILIZADOR").toUpperCase()}</span>
             </h1>
             
             <span className="text-xs text-white/40 font-mono tracking-wider mt-1.5 flex items-center gap-2">
@@ -1018,5 +1024,6 @@ export default function CommandCenter({
         )}
       </AnimatePresence>
     </div>
+    </>
   );
 }

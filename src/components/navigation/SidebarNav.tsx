@@ -48,6 +48,7 @@ interface SidebarNavProps {
   profileRequired?: boolean;
   accentColor?: AccentColorOption;
   isLight?: boolean;
+  aivaEnabled?: boolean;
 }
 
 export default function SidebarNav({
@@ -65,7 +66,8 @@ export default function SidebarNav({
     secondary: "#0284c7",
     glow: "rgba(0, 240, 255, 0.4)"
   },
-  isLight = false
+  isLight = false,
+  aivaEnabled = false,
 }: SidebarNavProps) {
   const { t, language } = useLanguage();
   const [currentTab, setCurrentTab] = useState<NavTabId>(activeTab);
@@ -79,7 +81,7 @@ export default function SidebarNav({
   };
 
   const selected = onSelectTab ? activeTab : currentTab;
-  const translatedNavItems: NavItem[] = [
+  const translatedNavItems: NavItem[] = ([
     { id: "overview", label: t("nav.main"), sublabel: t("nav.overview"), icon: LayoutGrid },
     { id: "clients", label: t("nav.clients"), sublabel: "Ecossistemas & CRM", icon: Users },
     { id: "database", label: t("nav.database"), sublabel: t("nav.databaseSub"), icon: Database },
@@ -88,7 +90,7 @@ export default function SidebarNav({
     { id: "payments", label: t("nav.payments"), sublabel: t("nav.paymentsSub"), icon: CreditCard },
     { id: "aiva", label: t("nav.aiva"), sublabel: language === "pt" ? "Assistente Operacional" : "Operational Assistant", icon: Sparkles },
     { id: "settings", label: t("nav.settings"), sublabel: t("nav.settingsSub"), icon: Settings },
-  ];
+  ] satisfies NavItem[]).filter((item) => aivaEnabled || item.id !== "aiva");
 
   return (
     <nav

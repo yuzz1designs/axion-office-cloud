@@ -13,3 +13,5 @@ desktop-release/
 device-id
 app-registry.json
 supabase/.temp/
+.wrangler/
+.dev.vars*

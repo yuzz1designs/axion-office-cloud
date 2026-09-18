@@ -51,6 +51,10 @@ export async function handleAivaApi(req: IncomingMessage, res: ServerResponse, n
   const url = new URL(req.url ?? "/", "http://localhost");
   if (!url.pathname.startsWith("/api/aiva/")) return next();
 
+  if (process.env.AXION_AIVA_ENABLED?.trim().toLowerCase() !== "true") {
+    return sendJson(res, 503, { error: "A AIVA está desativada nesta fase do AXION OFFICE.", code: "AIVA_DISABLED" });
+  }
+
   if (url.pathname === "/api/aiva/status" && req.method === "GET") {
     return sendJson(res, 200, { configured: Boolean(process.env.OPENAI_API_KEY), provider: "OpenAI", voice: "coral" });
   }

@@ -1,3 +1,4 @@
+import { CloudWorkspaceStore, CloudOAuthStates, integrationEncryptionConfigured } from "./cloudIntegrationStore";
 import type { IncomingMessage, ServerResponse } from "node:http";
 import { AuthProfileStore } from "./authProfileStore";
 import { GoogleOAuthClient, type GoogleOAuthConfig } from "./googleOAuthClient";
@@ -23,8 +24,9 @@ import { getSupabaseBackend } from "./supabaseBackend";
 import { getAllowedEmails } from "./supabaseConfig";
 import { recordTeamActivity } from "./teamActivityStore";
 
-const states = new WorkspaceOAuthStateStore();
-const store = new GoogleWorkspaceStore();
+const cloud = process.env.AXION_RUNTIME === "cloudflare";
+const states = cloud ? new CloudOAuthStates("google_calendar_tasks") : new WorkspaceOAuthStateStore();
+const store = cloud ? new CloudWorkspaceStore() : new GoogleWorkspaceStore();
 const profiles = new AuthProfileStore();
 
 function sendJson(res: ServerResponse, status: number, value: unknown) {
@@ -64,15 +66,15 @@ function config(): GoogleOAuthConfig | null {
   const clientId = process.env.GOOGLE_OAUTH_CLIENT_ID;
   const clientSecret = process.env.GOOGLE_OAUTH_CLIENT_SECRET;
   const redirectUri = process.env.GOOGLE_WORKSPACE_OAUTH_REDIRECT_URI || "http://localhost:3000/api/google/workspace/oauth/callback";
-  return clientId && clientSecret ? { clientId, clientSecret, redirectUri } : null;
+  return clientId && clientSecret && (!cloud || integrationEncryptionConfigured()) ? { clientId, clientSecret, redirectUri } : null;
 }
 
 function isGrantComplete(scopes: string[]) {
   return scopes.includes(GOOGLE_CALENDAR_SCOPE) && scopes.includes(GOOGLE_TASKS_SCOPE);
 }
 
-export function getGoogleWorkspaceState(profileId: string) {
-  const value = store.read(profileId);
+export async function getGoogleWorkspaceState(profileId: string) {
+  const value = await store.read(profileId);
   return {
     configured: Boolean(config()),
     connected: Boolean(value && isGrantComplete(value.grant.scopes)),
@@ -101,7 +103,7 @@ async function updateProfileFocus(profileId: string, focusMinutes: number) {
 }
 
 async function syncWorkspace(profileId: string) {
-  let value = store.read(profileId);
+  let value = await store.read(profileId);
   const oauthConfig = config();
   if (!value || !oauthConfig) throw new Error("GOOGLE_WORKSPACE_NOT_CONNECTED");
   const oauth = new GoogleOAuthClient(oauthConfig);
@@ -123,28 +125,28 @@ async function syncWorkspace(profileId: string) {
       value = { ...value, calendarSyncToken: undefined };
     }
     const events = mergeCalendarChanges(value.events, result.items, Boolean(value.calendarSyncToken));
-    store.update(profileId, { events, calendarSyncToken: result.nextSyncToken || value.calendarSyncToken, lastCalendarSyncAt: now.toISOString(), calendarError: undefined });
+    await store.update(profileId, { events, calendarSyncToken: result.nextSyncToken || value.calendarSyncToken, lastCalendarSyncAt: now.toISOString(), calendarError: undefined });
   } catch (error) {
-    store.update(profileId, { calendarError: error instanceof Error ? error.message : "Falha no Calendar" });
+    await store.update(profileId, { calendarError: error instanceof Error ? error.message : "Falha no Calendar" });
   }
 
-  value = store.read(profileId)!;
+  value = (await store.read(profileId))!;
   try {
     const taskListId = value.taskListId || await google.ensureAxionTaskList();
     const rawTasks = await google.listTasks(taskListId);
     const tasks = rawTasks.filter((task) => !task.deleted).map(fromGoogleTask);
     const focus = applySyncedTaskFocus(value.focus, tasks);
-    store.update(profileId, { taskListId, tasks, focus, lastTasksSyncAt: now.toISOString(), tasksError: undefined });
+    await store.update(profileId, { taskListId, tasks, focus, lastTasksSyncAt: now.toISOString(), tasksError: undefined });
     await updateProfileFocus(profileId, focus.totalMinutes);
   } catch (error) {
-    store.update(profileId, { tasksError: error instanceof Error ? error.message : "Falha no Tasks" });
+    await store.update(profileId, { tasksError: error instanceof Error ? error.message : "Falha no Tasks" });
   }
 
   return getGoogleWorkspaceState(profileId);
 }
 
 async function workspaceClient(profileId: string) {
-  const value = store.read(profileId);
+  const value = await store.read(profileId);
   const oauthConfig = config();
   if (!value || !oauthConfig) throw new Error("GOOGLE_WORKSPACE_NOT_CONNECTED");
   const accessToken = await new GoogleOAuthClient(oauthConfig).refreshAccessToken(value.grant.refreshToken);
@@ -160,13 +162,13 @@ export async function handleGoogleWorkspaceApi(req: IncomingMessage, res: Server
       const oauthConfig = config();
       if (!oauthConfig) return redirect(res, "/?google-workspace=error&reason=not-configured");
       if (url.searchParams.get("error")) return redirect(res, "/?google-workspace=error&reason=consent-denied");
-      const profileId = states.consume(url.searchParams.get("state") || "");
+      const profileId = await states.consume(url.searchParams.get("state") || "");
       if (!profileId) return redirect(res, "/?google-workspace=error&reason=invalid-state");
       const oauth = new GoogleOAuthClient(oauthConfig);
       const tokens = await oauth.exchangeAuthorizationCode(url.searchParams.get("code") || "");
       if (!isGrantComplete(tokens.scopes)) return redirect(res, "/?google-workspace=error&reason=missing-scopes");
       const email = await oauth.getUserEmail(tokens.accessToken);
-      store.writeGrant(profileId, { refreshToken: tokens.refreshToken, email, scopes: tokens.scopes, connectedAt: new Date().toISOString() });
+      await store.writeGrant(profileId, { refreshToken: tokens.refreshToken, email, scopes: tokens.scopes, connectedAt: new Date().toISOString() });
       await syncWorkspace(profileId);
       const backend = getSupabaseBackend();
       if (backend) await recordTeamActivity(backend.client, profileId, "google.workspace.connected", "integration", "google-workspace", { name: email });
@@ -177,20 +179,20 @@ export async function handleGoogleWorkspaceApi(req: IncomingMessage, res: Server
     if (!profile) return sendJson(res, 401, { error: "Configura primeiro o perfil AXION.", code: "AXION_PROFILE_REQUIRED" });
 
     if (url.pathname === "/api/google/workspace/status" && req.method === "GET") {
-      return sendJson(res, 200, getGoogleWorkspaceState(profile.id));
+      return sendJson(res, 200, await getGoogleWorkspaceState(profile.id));
     }
 
     if (url.pathname === "/api/google/workspace/oauth/start" && req.method === "GET") {
       const oauthConfig = config();
       if (!oauthConfig) return sendJson(res, 503, { error: "OAuth Google não está configurado.", code: "GOOGLE_WORKSPACE_NOT_CONFIGURED" });
-      return redirect(res, buildWorkspaceAuthorizationUrl({ clientId: oauthConfig.clientId, redirectUri: oauthConfig.redirectUri, state: states.create(profile.id) }));
+      return redirect(res, buildWorkspaceAuthorizationUrl({ clientId: oauthConfig.clientId, redirectUri: oauthConfig.redirectUri, state: await states.create(profile.id) }));
     }
 
     if (url.pathname === "/api/google/workspace/disconnect" && req.method === "POST") {
-      const value = store.read(profile.id);
+      const value = await store.read(profile.id);
       const oauthConfig = config();
       if (value && oauthConfig) await new GoogleOAuthClient(oauthConfig).revokeGrant(value.grant.refreshToken).catch(() => false);
-      store.clear(profile.id);
+      await store.clear(profile.id);
       const backend = getSupabaseBackend();
       if (backend) await recordTeamActivity(backend.client, profile.id, "google.workspace.disconnected", "integration", "google-workspace");
       return sendJson(res, 200, { disconnected: true });
@@ -204,7 +206,7 @@ export async function handleGoogleWorkspaceApi(req: IncomingMessage, res: Server
       const input = await readJson(req) as WorkspaceCalendarEvent;
       const { value, google } = await workspaceClient(profile.id);
       const created = fromGoogleEvent(await google.createEvent(toGoogleEvent(input)));
-      store.update(profile.id, { events: [...value.events.filter((item) => item.gcalEventId !== created.gcalEventId), created] });
+      await store.update(profile.id, { events: [...value.events.filter((item) => item.gcalEventId !== created.gcalEventId), created] });
       const backend = getSupabaseBackend();
       if (backend) await recordTeamActivity(backend.client, profile.id, "meeting.created", "calendar_event", created.id, { title: created.title });
       return sendJson(res, 201, created);
@@ -216,7 +218,7 @@ export async function handleGoogleWorkspaceApi(req: IncomingMessage, res: Server
       const { value, google } = await workspaceClient(profile.id);
       const eventId = decodeURIComponent(calendarMatch[1]);
       const updated = fromGoogleEvent(await google.updateEvent(eventId, toGoogleEvent(input)));
-      store.update(profile.id, { events: [...value.events.filter((item) => item.gcalEventId !== eventId), updated] });
+      await store.update(profile.id, { events: [...value.events.filter((item) => item.gcalEventId !== eventId), updated] });
       const backend = getSupabaseBackend();
       if (backend) await recordTeamActivity(backend.client, profile.id, "meeting.updated", "calendar_event", updated.id, { title: updated.title });
       return sendJson(res, 200, updated);
@@ -227,7 +229,7 @@ export async function handleGoogleWorkspaceApi(req: IncomingMessage, res: Server
       const { value, google } = await workspaceClient(profile.id);
       const taskListId = value.taskListId || await google.ensureAxionTaskList();
       const created = fromGoogleTask(await google.createTask(taskListId, toGoogleTask(input)));
-      store.update(profile.id, { taskListId, tasks: [...value.tasks.filter((item) => item.googleTaskId !== created.googleTaskId), created] });
+      await store.update(profile.id, { taskListId, tasks: [...value.tasks.filter((item) => item.googleTaskId !== created.googleTaskId), created] });
       const backend = getSupabaseBackend();
       if (backend) await recordTeamActivity(backend.client, profile.id, "task.created", "task", created.id, { title: created.title });
       return sendJson(res, 201, created);
@@ -243,7 +245,7 @@ export async function handleGoogleWorkspaceApi(req: IncomingMessage, res: Server
       const updated = fromGoogleTask(await google.updateTask(value.taskListId, taskId, toGoogleTask(input)));
       let focus = value.focus;
       if (previous?.completed !== updated.completed) focus = applyTaskFocusTransition(focus, { taskId: updated.id, completed: updated.completed, estimatedMinutes: updated.estimatedMinutes });
-      store.update(profile.id, { tasks: [...value.tasks.filter((item) => item.googleTaskId !== taskId), updated], focus });
+      await store.update(profile.id, { tasks: [...value.tasks.filter((item) => item.googleTaskId !== taskId), updated], focus });
       await updateProfileFocus(profile.id, focus.totalMinutes);
       const backend = getSupabaseBackend();
       if (backend) await recordTeamActivity(backend.client, profile.id, "task.updated", "task", updated.id, { title: updated.title, completed: updated.completed });

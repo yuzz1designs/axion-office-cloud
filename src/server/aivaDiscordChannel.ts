@@ -18,7 +18,7 @@ interface DiscordConversation {
 const DISCORD_TOOLS = new Set(["get_date_time", "list_tasks"]);
 
 async function listTasks(client: SupabaseClient, userId: string, date: string) {
-  const google = getGoogleWorkspaceState(userId).tasks || [];
+  const google = (await getGoogleWorkspaceState(userId)).tasks || [];
   const { data, error } = await client.from("tasks").select("id,title,due_date,due_time,completed,priority")
     .eq("assignee_user_id", userId).eq("due_date", date).order("due_time");
   if (error) throw new Error(`AIVA_TASKS_FAILED:${error.message}`);

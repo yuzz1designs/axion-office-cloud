@@ -1,5 +1,7 @@
+import { CloudDriveStore, CloudOAuthStates, integrationEncryptionConfigured } from "./cloudIntegrationStore";
 import type { IncomingMessage, ServerResponse } from "node:http";
-import { buildGoogleAuthorizationUrl, GOOGLE_DRIVE_SCOPE, OAuthStateStore, toPublicOAuthStatus } from "./googleOAuthCore";
+import { buildGoogleAuthorizationUrl, GOOGLE_DRIVE_SCOPE, toPublicOAuthStatus } from "./googleOAuthCore";
+import { WorkspaceOAuthStateStore } from "./googleWorkspaceCore";
 import { GoogleOAuthClient, type GoogleOAuthConfig } from "./googleOAuthClient";
 import { GoogleOAuthStore } from "./googleOAuthStore";
 import { authenticateSupabaseUser, readSessionToken } from "./supabaseAuth";
@@ -7,8 +9,9 @@ import { getSupabaseBackend } from "./supabaseBackend";
 import { getAllowedEmails } from "./supabaseConfig";
 import { recordTeamActivity } from "./teamActivityStore";
 
-const states = new OAuthStateStore();
-const store = new GoogleOAuthStore();
+const cloud = process.env.AXION_RUNTIME === "cloudflare";
+const states = cloud ? new CloudOAuthStates("google_drive") : new WorkspaceOAuthStateStore();
+const store = cloud ? new CloudDriveStore() : new GoogleOAuthStore();
 
 function sendJson(res: ServerResponse, status: number, value: unknown) {
   res.statusCode = status;
@@ -28,7 +31,7 @@ export function getGoogleOAuthConfig(): GoogleOAuthConfig | null {
   const clientId = process.env.GOOGLE_OAUTH_CLIENT_ID;
   const clientSecret = process.env.GOOGLE_OAUTH_CLIENT_SECRET;
   const redirectUri = process.env.GOOGLE_OAUTH_REDIRECT_URI || "http://localhost:3000/api/google/oauth/callback";
-  return clientId && clientSecret ? { clientId, clientSecret, redirectUri } : null;
+  return clientId && clientSecret && (!cloud || integrationEncryptionConfigured()) ? { clientId, clientSecret, redirectUri } : null;
 }
 
 export function getGoogleOAuthStore() {
@@ -56,36 +59,41 @@ export async function handleGoogleOAuthApi(req: IncomingMessage, res: ServerResp
     const config = getGoogleOAuthConfig();
     const client = config ? new GoogleOAuthClient(config) : null;
 
+    if (url.pathname === "/api/google/oauth/callback" && req.method === "GET") {
+      if (!client) return redirect(res, "/?google-drive=error&reason=not-configured");
+      if (url.searchParams.get("error")) return redirect(res, "/?google-drive=error&reason=consent-denied");
+      const profileId = await states.consume(url.searchParams.get("state") || "");
+      const code = url.searchParams.get("code") || "";
+      if (!profileId) return redirect(res, "/?google-drive=error&reason=invalid-state");
+      if (!code) return redirect(res, "/?google-drive=error&reason=missing-code");
+      const tokens = await client.exchangeAuthorizationCode(code);
+      if (!tokens.scopes.includes(GOOGLE_DRIVE_SCOPE)) return redirect(res, "/?google-drive=error&reason=missing-scope");
+      const email = await client.getUserEmail(tokens.accessToken);
+      await store.write(profileId, { refreshToken: tokens.refreshToken, email, scopes: tokens.scopes, connectedAt: new Date().toISOString() });
+      const backend = getSupabaseBackend();
+      if (backend) await recordTeamActivity(backend.client, profileId, "google.drive.connected", "integration", "google-drive", { name: email });
+      return redirect(res, "/?google-drive=connected");
+    }
+
+    const backend = getSupabaseBackend();
+    if (!backend) return sendJson(res, 503, { error: "Supabase ainda não está configurado." });
+    const user = await authenticateSupabaseUser(readSessionToken(req.headers.cookie), backend.client.auth, getAllowedEmails());
+    if (!user) return sendJson(res, 401, { error: "Inicia sessão com uma conta AXION autorizada." });
+
     if (url.pathname === "/api/google/oauth/status" && req.method === "GET") {
-      return sendJson(res, 200, toPublicOAuthStatus({ configured: Boolean(config), grant: store.read() }));
+      return sendJson(res, 200, toPublicOAuthStatus({ configured: Boolean(config), grant: await store.read(user.id) }));
     }
 
     if (url.pathname === "/api/google/oauth/start" && req.method === "GET") {
       if (!config) return sendJson(res, 503, { error: "OAuth Google ainda não está configurado no servidor.", code: "GOOGLE_OAUTH_NOT_CONFIGURED" });
-      const state = states.create();
+      const state = await states.create(user.id);
       return redirect(res, buildGoogleAuthorizationUrl({ clientId: config.clientId, redirectUri: config.redirectUri, state }));
     }
 
-    if (url.pathname === "/api/google/oauth/callback" && req.method === "GET") {
-      if (!client) return redirect(res, "/?google-drive=error&reason=not-configured");
-      if (url.searchParams.get("error")) return redirect(res, "/?google-drive=error&reason=consent-denied");
-      const state = url.searchParams.get("state") || "";
-      const code = url.searchParams.get("code") || "";
-      if (!state || !states.consume(state)) return redirect(res, "/?google-drive=error&reason=invalid-state");
-      if (!code) return redirect(res, "/?google-drive=error&reason=missing-code");
-
-      const tokens = await client.exchangeAuthorizationCode(code);
-      if (!tokens.scopes.includes(GOOGLE_DRIVE_SCOPE)) return redirect(res, "/?google-drive=error&reason=missing-scope");
-      const email = await client.getUserEmail(tokens.accessToken);
-      store.write({ refreshToken: tokens.refreshToken, email, scopes: tokens.scopes, connectedAt: new Date().toISOString() });
-      await recordDriveActivity(req, "google.drive.connected", email);
-      return redirect(res, "/?google-drive=connected");
-    }
-
     if (url.pathname === "/api/google/oauth/disconnect" && req.method === "POST") {
-      const grant = store.read();
+      const grant = await store.read(user.id);
       if (grant && client) await client.revokeGrant(grant.refreshToken).catch(() => false);
-      store.clear();
+      await store.clear(user.id);
       await recordDriveActivity(req, "google.drive.disconnected");
       return sendJson(res, 200, { disconnected: true });
     }

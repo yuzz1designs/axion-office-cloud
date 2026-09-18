@@ -5,30 +5,44 @@ import type { OAuthGrant } from "./googleOAuthCore";
 export class GoogleOAuthStore {
   private readonly filePath: string;
 
-  constructor(private readonly directory = path.resolve(process.cwd(), ".axion-local")) {
+  constructor(private readonly directory = path.resolve(process.env.AXION_DATA_DIR || path.join(process.cwd(), ".axion-local"))) {
     this.filePath = path.join(directory, "google-oauth.json");
   }
 
-  read(): OAuthGrant | null {
-    if (!existsSync(this.filePath)) return null;
+  private readAll(): Record<string, OAuthGrant> {
+    if (!existsSync(this.filePath)) return {};
     try {
-      const value = JSON.parse(readFileSync(this.filePath, "utf8")) as Partial<OAuthGrant>;
-      if (!value.refreshToken || !value.email || !Array.isArray(value.scopes) || !value.connectedAt) throw new Error("INVALID_GRANT");
-      return value as OAuthGrant;
+      const value = JSON.parse(readFileSync(this.filePath, "utf8"));
+      return value && typeof value === "object" ? value as Record<string, OAuthGrant> : {};
     } catch {
       throw new Error("GOOGLE_OAUTH_STORE_INVALID");
     }
   }
 
-  write(grant: OAuthGrant) {
+  read(profileId: string): OAuthGrant | null {
+    const value = this.readAll()?.[profileId];
+    if (!value) return null;
+    if (!value.refreshToken || !value.email || !Array.isArray(value.scopes) || !value.connectedAt) throw new Error("GOOGLE_OAUTH_STORE_INVALID");
+    return value;
+  }
+
+  private writeAll(value: Record<string, OAuthGrant>) {
     mkdirSync(this.directory, { recursive: true, mode: 0o700 });
     const temporaryPath = `${this.filePath}.tmp`;
-    writeFileSync(temporaryPath, JSON.stringify(grant, null, 2), { encoding: "utf8", mode: 0o600 });
+    writeFileSync(temporaryPath, JSON.stringify(value, null, 2), { encoding: "utf8", mode: 0o600 });
     renameSync(temporaryPath, this.filePath);
     chmodSync(this.filePath, 0o600);
   }
 
-  clear() {
-    if (existsSync(this.filePath)) unlinkSync(this.filePath);
+  write(profileId: string, grant: OAuthGrant) {
+    this.writeAll({ ...this.readAll(), [profileId]: grant });
+  }
+
+  clear(profileId: string) {
+    if (!existsSync(this.filePath)) return;
+    const all = this.readAll();
+    delete all[profileId];
+    if (!Object.keys(all).length) return unlinkSync(this.filePath);
+    this.writeAll(all);
   }
 }

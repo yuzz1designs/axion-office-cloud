@@ -27,7 +27,7 @@ type WorkspaceFile = Record<string, WorkspaceProfileState>;
 export class GoogleWorkspaceStore {
   private readonly filePath: string;
 
-  constructor(private readonly directory = path.resolve(process.cwd(), ".axion-local")) {
+  constructor(private readonly directory = path.resolve(process.env.AXION_DATA_DIR || path.join(process.cwd(), ".axion-local"))) {
     this.filePath = path.join(directory, "google-workspace.json");
   }
 

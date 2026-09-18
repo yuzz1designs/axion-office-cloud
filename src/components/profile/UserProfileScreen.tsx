@@ -138,6 +138,7 @@ export default function UserProfileScreen({
   const [isSaving, setIsSaving] = useState(false);
   const [saveError, setSaveError] = useState("");
   const [googleWorkspace, setGoogleWorkspace] = useState<{ configured: boolean; connected: boolean; email?: string } | null>(null);
+  const [googleConnectError, setGoogleConnectError] = useState("");
   const [discordUserId, setDiscordUserId] = useState("");
   const [discordDisplayName, setDiscordDisplayName] = useState("");
   const [discordLinked, setDiscordLinked] = useState(false);
@@ -173,6 +174,22 @@ export default function UserProfileScreen({
   const disconnectGoogleWorkspace = async () => {
     const response = await fetch("/api/google/workspace/disconnect", { method: "POST" });
     if (response.ok) setGoogleWorkspace((current) => current ? { ...current, connected: false, email: undefined } : current);
+  };
+
+  const connectGoogleWorkspace = async () => {
+    setGoogleConnectError("");
+    try {
+      const response = await fetch("/api/google/workspace/status", { cache: "no-store" });
+      if (!response.headers.get("content-type")?.includes("application/json")) {
+        throw new Error("A ligação Google não está disponível neste site: a API do AXION OFFICE não está ligada à publicação.");
+      }
+      const status = await response.json() as { configured?: boolean; error?: string };
+      if (!response.ok) throw new Error(status.error || "Não foi possível verificar a ligação Google.");
+      if (!status.configured) throw new Error("A ligação Google ainda não está configurada no servidor.");
+      window.location.assign("/api/google/workspace/oauth/start");
+    } catch (error) {
+      setGoogleConnectError(error instanceof Error ? error.message : "Não foi possível iniciar a ligação Google.");
+    }
   };
 
   const saveDiscordIntegration = async () => {
@@ -614,11 +631,12 @@ export default function UserProfileScreen({
                 {googleWorkspace?.connected ? (
                   <button type="button" onClick={disconnectGoogleWorkspace} className="rounded-lg border border-white/10 px-3 py-2 text-[10px] font-mono text-white/60 hover:text-white">Desligar</button>
                 ) : (
-                  <a href="/api/google/workspace/oauth/start" className="rounded-lg px-3 py-2 text-[10px] font-mono font-bold text-black" style={{ backgroundColor: accentColor.hex }}>
+                  <button type="button" onClick={() => void connectGoogleWorkspace()} className="rounded-lg px-3 py-2 text-[10px] font-mono font-bold text-black" style={{ backgroundColor: accentColor.hex }}>
                     Ligar Google
-                  </a>
+                  </button>
                 )}
               </div>
+              {googleConnectError && <p role="alert" className="-mt-6 text-[11px] text-rose-300">{googleConnectError}</p>}
 
               <div className="grid grid-cols-1 md:grid-cols-3 gap-4 border-b border-white/10 pb-6">
                 <div className="flex flex-col gap-1">

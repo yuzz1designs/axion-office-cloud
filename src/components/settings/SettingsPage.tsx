@@ -5,7 +5,7 @@
 
 import { useState } from "react";
 import { AnimatePresence, motion } from "motion/react";
-import { AlertCircle, Bot, Check, ChevronRight, Globe, LayoutGrid, Palette, Undo2 } from "lucide-react";
+import { AlertCircle, Check, ChevronRight, Globe, LayoutGrid, Palette, Undo2 } from "lucide-react";
 import type { AppearanceSettings, CommandCenterConfig, LanguageRegionSettings } from "../../types/settings";
 import { ACCENT_COLOR_OPTIONS, DEFAULT_APPEARANCE, DEFAULT_COMMAND_CENTER, DEFAULT_LANGUAGE_REGION } from "../../data/settingsMockData";
 import PersonalAppearance from "./PersonalAppearance";
@@ -13,7 +13,6 @@ import PersonalCommandCenter from "./PersonalCommandCenter";
 import PersonalLanguageRegion from "./PersonalLanguageRegion";
 import { getSettingsCopy, publishSettingsActivity, sanitizeCommandCenterConfig, sanitizeLanguageRegionSettings, type ActiveSettingId } from "./settingsCore";
 import { useLanguage } from "../../i18n/LanguageContext";
-import AivaDesktopSettings from "./AivaDesktopSettings";
 
 interface SettingsPageProps {
   initialAppearance?: AppearanceSettings;
@@ -54,7 +53,6 @@ export default function SettingsPage({
     { id: "appearance" as const, label: isPortuguese ? "Aspeto" : "Appearance", description: isPortuguese ? "Fundo e cor do dashboard" : "Dashboard background and color", icon: Palette },
     { id: "language" as const, label: isPortuguese ? "Idioma" : "Language", description: isPortuguese ? "Idioma da interface" : "Interface language", icon: Globe },
     { id: "command-center" as const, label: "Command Center", description: isPortuguese ? "Ordem e quantidade de informação" : "Information order and amount", icon: LayoutGrid },
-    { id: "aiva-desktop" as const, label: "AIVA Desktop", description: isPortuguese ? "Mac, permissões e aplicações" : "Mac, permissions and applications", icon: Bot },
   ];
 
   const notify = (message: string) => {
@@ -99,9 +97,7 @@ export default function SettingsPage({
     <PersonalLanguageRegion settings={languageRegion} onChange={(next) => { setLanguageRegion(next); onLanguageRegionChange?.(next); }} />
   ) : activeCategory === "command-center" ? (
     <PersonalCommandCenter settings={commandCenter} onChange={setCommandCenter} />
-  ) : (
-    <AivaDesktopSettings />
-  );
+  ) : null;
 
   return (
     <div className="relative mx-auto flex w-full max-w-6xl flex-col gap-6 py-4 pb-28">

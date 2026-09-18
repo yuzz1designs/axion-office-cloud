@@ -183,18 +183,20 @@ export default function WelcomeScreen({ onEnter }: WelcomeScreenProps) {
       "LISBOA",
     );
 
-    if (!navigator.geolocation) {
+    // Use location only when it has already been granted; opening Home must not prompt for permission.
+    if (navigator.geolocation && navigator.permissions?.query) {
+      void navigator.permissions.query({ name: "geolocation" }).then((permission) => {
+        if (!isActive) return;
+        if (permission.state !== "granted") return void loadLisbonWeather();
+        navigator.geolocation.getCurrentPosition(
+          ({ coords }) => { void loadWeather(coords.latitude, coords.longitude, "LOCAL"); },
+          () => { void loadLisbonWeather(); },
+          { enableHighAccuracy: false, maximumAge: 15 * 60 * 1000, timeout: 5000 },
+        );
+      }).catch(() => { if (isActive) void loadLisbonWeather(); });
+    } else {
       void loadLisbonWeather();
-      return () => { isActive = false; };
     }
-
-    navigator.geolocation.getCurrentPosition(
-      ({ coords }) => {
-        void loadWeather(coords.latitude, coords.longitude, "LOCAL");
-      },
-      () => { void loadLisbonWeather(); },
-      { enableHighAccuracy: false, maximumAge: 15 * 60 * 1000, timeout: 5000 },
-    );
 
     return () => { isActive = false; };
   }, []);
@@ -229,11 +231,10 @@ export default function WelcomeScreen({ onEnter }: WelcomeScreenProps) {
   }, [language]);
 
   const handleEnterClick = () => {
+    if (isExiting) return;
     setIsExiting(true);
     setLogoExit(true);
-    setTimeout(() => {
-      onEnter();
-    }, 950);
+    onEnter();
   };
 
   const handleWeatherBackgroundLinkChange = () => {

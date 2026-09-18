@@ -3,7 +3,7 @@ import test from "node:test";
 import { ACTIVE_SETTING_IDS, getSettingsCopy, publishSettingsActivity, sanitizeCommandCenterConfig } from "./settingsCore";
 
 test("expõe apenas definições que têm efeito real no AXION OFFICE", () => {
-  assert.deepEqual(ACTIVE_SETTING_IDS, ["appearance", "language", "command-center", "aiva-desktop"]);
+  assert.deepEqual(ACTIVE_SETTING_IDS, ["appearance", "language", "command-center"]);
 });
 
 test("remove módulos antigos do Command Center e preserva a ordem útil", () => {

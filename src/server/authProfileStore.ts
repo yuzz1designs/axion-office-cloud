@@ -5,7 +5,7 @@ import type { UserProfile } from "./authCore";
 export class AuthProfileStore {
   private readonly filePath: string;
 
-  constructor(private readonly directory = path.resolve(process.cwd(), ".axion-local")) {
+  constructor(private readonly directory = path.resolve(process.env.AXION_DATA_DIR || path.join(process.cwd(), ".axion-local"))) {
     this.filePath = path.join(directory, "profiles.json");
   }
 

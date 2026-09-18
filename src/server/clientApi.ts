@@ -37,7 +37,7 @@ export async function handleClientApi(req: IncomingMessage, res: ServerResponse,
     if (documentMatch && req.method === "POST") {
       const clientId = decodeURIComponent(documentMatch[1]);
       const result = await uploadAndAttachClientDocument({
-        upload: () => uploadDocumentToDocs(req),
+        upload: () => uploadDocumentToDocs(req, user.id),
         attach: ({ document }) => store.attachDocument(user.id, clientId, document),
         rollback: ({ document, accessToken }) => deleteDriveDocument({ accessToken, documentId: document.id }),
       });

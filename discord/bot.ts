@@ -12,6 +12,11 @@ import { resolveDiscordIdentity, SupabaseDiscordIdentitySource } from "../src/se
 import { AivaDiscordChannel } from "../src/server/aivaDiscordChannel";
 import { buildAivaDiscordMessage } from "./presentation";
 
+if (process.env.AXION_AIVA_ENABLED?.trim().toLowerCase() !== "true") {
+  console.log("[AIVA DISCORD] AIVA desativada por configuração.");
+  process.exit(0);
+}
+
 const token = process.env.DISCORD_BOT_TOKEN?.trim();
 const applicationId = process.env.DISCORD_APPLICATION_ID?.trim();
 const guildId = process.env.DISCORD_GUILD_ID?.trim();

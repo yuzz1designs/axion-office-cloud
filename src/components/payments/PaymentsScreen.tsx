@@ -67,6 +67,9 @@ export default function PaymentsScreen({
   const notify = (message: string) => { setToast(message); window.setTimeout(() => setToast(""), 3200); };
   const request = async (path: string, options?: RequestInit) => {
     const response = await fetch(path, { ...options, headers: options?.body ? { "Content-Type": "application/json", ...options.headers } : options?.headers });
+    if (!response.headers.get("content-type")?.includes("application/json")) {
+      throw new Error("O Financeiro não está disponível neste site: a API do AXION OFFICE não está ligada à publicação.");
+    }
     const result = await response.json();
     if (!response.ok) throw new Error(result.error || "Não foi possível atualizar o Financeiro.");
     setData(result);

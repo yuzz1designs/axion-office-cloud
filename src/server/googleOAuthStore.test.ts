@@ -17,8 +17,8 @@ test("persiste e recupera o grant com permissões restritas", () => {
   const directory = mkdtempSync(join(tmpdir(), "axion-oauth-store-"));
   try {
     const store = new GoogleOAuthStore(directory);
-    store.write(grant);
-    assert.deepEqual(store.read(), grant);
+    store.write("user-1", grant);
+    assert.deepEqual(store.read("user-1"), grant);
     assert.equal(statSync(join(directory, "google-oauth.json")).mode & 0o777, 0o600);
   } finally {
     rmSync(directory, { recursive: true, force: true });
@@ -29,9 +29,9 @@ test("clear remove apenas o grant OAuth", () => {
   const directory = mkdtempSync(join(tmpdir(), "axion-oauth-store-"));
   try {
     const store = new GoogleOAuthStore(directory);
-    store.write(grant);
-    store.clear();
-    assert.equal(store.read(), null);
+    store.write("user-1", grant);
+    store.clear("user-1");
+    assert.equal(store.read("user-1"), null);
   } finally {
     rmSync(directory, { recursive: true, force: true });
   }
@@ -41,7 +41,7 @@ test("rejeita um grant local corrompido", () => {
   const directory = mkdtempSync(join(tmpdir(), "axion-oauth-store-"));
   try {
     writeFileSync(join(directory, "google-oauth.json"), "{invalid-json");
-    assert.throws(() => new GoogleOAuthStore(directory).read(), /GOOGLE_OAUTH_STORE_INVALID/);
+    assert.throws(() => new GoogleOAuthStore(directory).read("user-1"), /GOOGLE_OAUTH_STORE_INVALID/);
   } finally {
     rmSync(directory, { recursive: true, force: true });
   }

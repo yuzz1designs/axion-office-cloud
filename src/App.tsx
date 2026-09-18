@@ -5,7 +5,7 @@
 
 import React, { useState, useEffect, useRef } from "react";
 import type { CSSProperties } from "react";
-import { AnimatePresence, motion } from "motion/react";
+import { AnimatePresence, motion, useReducedMotion } from "motion/react";
 import WelcomeScreen from "./components/welcome/WelcomeScreen";
 import CommandCenter from "./components/command/CommandCenter";
 import { AppearanceSettings, CommandCenterConfig, LanguageRegionSettings } from "./types/settings";
@@ -17,6 +17,7 @@ import { bridgeSupabaseSession, completeDesktopOAuthHandoff, getDesktopOAuthRetu
 import { normalizeAppearanceSettings } from "./lib/appearance";
 import { sanitizeCommandCenterConfig, sanitizeLanguageRegionSettings } from "./components/settings/settingsCore";
 import { AivaSessionProvider } from "./components/aiva/AivaSessionProvider";
+import { AIVA_ENABLED } from "./lib/features";
 
 interface AuthStatus {
   authConfigured?: boolean;
@@ -28,6 +29,8 @@ interface AuthStatus {
 }
 
 export default function App() {
+  const reducedMotion = useReducedMotion();
+  const [enteringOffice, setEnteringOffice] = useState(false);
   const desktop = isAxionDesktop(window.location.href);
   const initialDesktopOAuthReturn = getDesktopOAuthReturnState(window.location.href);
   const initialOAuthReturn = hasSupabaseOAuthReturn(window.location.href);
@@ -38,6 +41,7 @@ export default function App() {
   const [authStatus, setAuthStatus] = useState<AuthStatus | null>(null);
   const [supabaseConfig, setSupabaseConfig] = useState<SupabasePublicConfig>({ configured: false });
   const [desktopReturnStatus, setDesktopReturnStatus] = useState<"working" | "complete" | "error">("working");
+  const [bootstrapError, setBootstrapError] = useState("");
 
   // Global Appearance State initialized from LocalStorage or Defaults
   const [appearance, setAppearance] = useState<AppearanceSettings>(() => {
@@ -94,6 +98,7 @@ export default function App() {
 
   const refreshAuthStatus = async () => {
     const response = await fetch("/api/profile/status");
+    if (!response.ok || !response.headers.get("content-type")?.includes("application/json")) throw new Error("AXION_API_UNAVAILABLE");
     setAuthStatus(await response.json());
   };
 
@@ -104,6 +109,7 @@ export default function App() {
       try {
         const oauthReturn = hasSupabaseOAuthReturn(window.location.href);
         const configResponse = await fetch("/api/auth/config");
+        if (!configResponse.ok || !configResponse.headers.get("content-type")?.includes("application/json")) throw new Error("AXION_API_UNAVAILABLE");
         const config = await configResponse.json() as SupabasePublicConfig;
         setSupabaseConfig(config);
         let handoffState = desktopOAuthReturn;
@@ -126,9 +132,11 @@ export default function App() {
           window.history.replaceState({}, document.title, window.location.pathname);
         }
         setOauthBootstrap(false);
-      } catch {
+      } catch (error) {
         setOauthBootstrap(false);
-        setAuthStatus({ hasProfile: false, profile: null, profileRequired: true, authRequired: false });
+        setBootstrapError(error instanceof Error && error.message === "AXION_API_UNAVAILABLE"
+          ? "O servidor do AXION OFFICE não está disponível nesta publicação."
+          : "Não foi possível iniciar o AXION OFFICE.");
       }
     };
     void bootstrap();
@@ -196,7 +204,16 @@ export default function App() {
         )}
       </AnimatePresence>
       <AnimatePresence mode="wait">
-        {desktopOAuthReturn || oauthBootstrap ? (
+        {bootstrapError ? (
+          <motion.div key="bootstrap-error" initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="w-full h-full flex items-center justify-center bg-[#050609] px-6">
+            <div className="max-w-lg rounded-3xl border border-rose-400/20 bg-rose-400/[0.06] p-8 text-center">
+              <p className="text-[10px] font-mono tracking-[0.28em] text-rose-200/60 uppercase">AXION OFFICE · Serviço indisponível</p>
+              <h1 className="mt-3 text-2xl font-semibold">Dashboard temporariamente indisponível</h1>
+              <p className="mt-3 text-sm leading-6 text-white/55">{bootstrapError} A publicação web precisa da API para autenticar utilizadores e carregar dados reais.</p>
+              <button type="button" onClick={() => window.location.reload()} className="mt-6 rounded-xl border border-white/15 px-4 py-2 text-xs font-semibold text-white/80 hover:bg-white/5">Tentar novamente</button>
+            </div>
+          </motion.div>
+        ) : desktopOAuthReturn || oauthBootstrap ? (
           <motion.div key="desktop-auth-return" initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="w-full h-full flex items-center justify-center bg-[#050609] px-6">
             <div className="max-w-md text-center">
               <p className="text-[10px] font-mono tracking-[0.28em] text-white/35 uppercase">AXION OFFICE · Desktop</p>
@@ -208,11 +225,11 @@ export default function App() {
           <motion.div
             key="welcome"
             initial={{ opacity: 1 }}
-            exit={{ opacity: 0 }}
-            transition={{ duration: 0.8, ease: "easeInOut" }}
+            exit={reducedMotion ? { opacity: 0 } : { opacity: 0, scale: 1.12, y: -35, filter: "blur(8px)" }}
+            transition={{ duration: reducedMotion ? 0.15 : 0.55, ease: [0.76, 0, 0.24, 1] }}
             className="w-full h-full"
           >
-            <WelcomeScreen onEnter={() => setScreen("command-center")} />
+            <WelcomeScreen onEnter={() => { setEnteringOffice(true); setScreen("command-center"); }} />
           </motion.div>
         ) : authStatus?.authRequired ? (
           <motion.div key="axion-login" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="w-full h-full">
@@ -221,13 +238,13 @@ export default function App() {
         ) : (
           <motion.div
             key="command-center"
-            initial={{ opacity: 0, filter: "blur(15px)" }}
-            animate={{ opacity: 1, filter: "blur(0px)" }}
-            exit={{ opacity: 0, filter: "blur(15px)" }}
-            transition={{ duration: 1.2, ease: [0.16, 1, 0.3, 1] }}
+            initial={reducedMotion ? { opacity: 0 } : { opacity: 0, scale: 0.965, y: 28, filter: "blur(6px)" }}
+            animate={{ opacity: 1, scale: 1, y: 0, filter: "blur(0px)" }}
+            exit={{ opacity: 0 }}
+            transition={{ duration: reducedMotion ? 0.15 : 0.8, ease: [0.16, 1, 0.3, 1] }}
             className="w-full h-full"
           >
-            <AivaSessionProvider><CommandCenter
+            {AIVA_ENABLED ? <AivaSessionProvider><CommandCenter
               appearance={appearance}
               onAppearanceChange={handleAppearanceChange}
               commandCenterConfig={commandCenterConfig}
@@ -239,10 +256,43 @@ export default function App() {
               currentDeviceId={authStatus?.currentDeviceId}
               onProfileSaved={(profile, currentDeviceId) => setAuthStatus({ hasProfile: true, profile, profileRequired: false, currentDeviceId })}
               onBackToWelcome={() => void handleSignOut()}
-            /></AivaSessionProvider>
+              aivaEnabled
+            /></AivaSessionProvider> : <CommandCenter
+              appearance={appearance}
+              onAppearanceChange={handleAppearanceChange}
+              commandCenterConfig={commandCenterConfig}
+              onCommandCenterConfigChange={setCommandCenterConfig}
+              languageRegion={languageRegion}
+              onLanguageRegionChange={handleLanguageRegionChange}
+              profile={authStatus?.profile ?? null}
+              profileRequired={authStatus?.profileRequired ?? false}
+              currentDeviceId={authStatus?.currentDeviceId}
+              onProfileSaved={(profile, currentDeviceId) => setAuthStatus({ hasProfile: true, profile, profileRequired: false, currentDeviceId })}
+              onBackToWelcome={() => void handleSignOut()}
+              aivaEnabled={false}
+            />}
           </motion.div>
         )}
       </AnimatePresence>
+      {enteringOffice && <motion.div
+        aria-hidden="true"
+        className="pointer-events-none absolute inset-0 z-[100] overflow-hidden"
+        initial={{ opacity: 1 }}
+        animate={{ opacity: 0 }}
+        transition={{ delay: reducedMotion ? 0 : 0.8, duration: reducedMotion ? 0.15 : 0.45 }}
+        onAnimationComplete={() => setEnteringOffice(false)}
+      >
+        {!reducedMotion && <>
+          <motion.div className="absolute inset-0" style={{ background: `radial-gradient(ellipse at 50% 48%, ${activeAccent.hex}24, transparent 65%)` }} initial={{ opacity: 0, scale: 0.5 }} animate={{ opacity: [0, 1, 0], scale: [0.5, 1.1, 1.6] }} transition={{ duration: 1.2, times: [0, 0.4, 1] }} />
+          {[0, 1, 2].map((index) => <motion.div key={index}
+            className="absolute left-1/2 top-1/2 rounded-full border"
+            style={{ width: "70vmax", height: "70vmax", marginLeft: "-35vmax", marginTop: "-35vmax", borderColor: `${activeAccent.hex}${index === 0 ? "65" : "25"}` }}
+            initial={{ scale: 0.04, opacity: 0 }}
+            animate={{ scale: 2.2, opacity: [0, 0.7, 0] }}
+            transition={{ duration: 1.05, delay: index * 0.08, ease: [0.16, 1, 0.3, 1] }}
+          />)}
+        </>}
+      </motion.div>}
     </div>
     </LanguageProvider>
   );

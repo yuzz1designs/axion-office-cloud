@@ -1,6 +1,6 @@
 import type { CommandCenterConfig, CommandCenterModuleItem, LanguageRegionSettings } from "../../types/settings";
 
-export const ACTIVE_SETTING_IDS = ["appearance", "language", "command-center", "aiva-desktop"] as const;
+export const ACTIVE_SETTING_IDS = ["appearance", "language", "command-center"] as const;
 export type ActiveSettingId = typeof ACTIVE_SETTING_IDS[number];
 
 const SETTINGS_COPY = {

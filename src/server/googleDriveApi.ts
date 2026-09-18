@@ -93,14 +93,14 @@ async function listDocuments() {
   return (result.files || []).map(mapDriveFile);
 }
 
-export async function uploadDocumentToDocs(req: IncomingMessage) {
+export async function uploadDocumentToDocs(req: IncomingMessage, userId: string) {
   const fileName = decodeUploadFileName(typeof req.headers["x-file-name"] === "string" ? req.headers["x-file-name"] : undefined);
   const mimeType = String(req.headers["content-type"] || "application/octet-stream").split(";")[0];
   const file = await readBody(req, MAX_DRIVE_UPLOAD_BYTES);
   validateDriveUpload({ fileName, byteLength: file.length });
 
   const store = getGoogleOAuthStore();
-  const grant = store.read();
+  const grant = await store.read(userId);
   const client = getGoogleOAuthClient();
   if (!grant || !client) throw new Error("GOOGLE_DRIVE_OAUTH_REQUIRED");
   try {
@@ -109,7 +109,7 @@ export async function uploadDocumentToDocs(req: IncomingMessage) {
     return { document, accessToken };
   } catch (error) {
     if (error instanceof Error && error.message.startsWith("GOOGLE_OAUTH_TOKEN_FAILED")) {
-      store.clear();
+      await store.clear(userId);
       throw new Error("GOOGLE_DRIVE_OAUTH_REQUIRED");
     }
     throw error;
@@ -135,7 +135,7 @@ export async function handleGoogleDriveApi(req: IncomingMessage, res: ServerResp
       });
     }
     if (url.pathname === "/api/documents/upload" && req.method === "POST") {
-      const { document } = await uploadDocumentToDocs(req);
+      const { document } = await uploadDocumentToDocs(req, user.id);
       await recordTeamActivity(backend.client, user.id, "document.uploaded", "document", document.id, { name: document.name });
       return sendJson(res, 201, { document });
     }

@@ -37,7 +37,6 @@ import {
   IntegratedTask, 
   MeetingAta, 
   DISCORD_CHANNELS, 
-  MOCK_INTEGRATED_TASKS, 
   MeetingInviteNotification
 } from "../../data/calendarMockData";
 import { AccentColorOption } from "../../types/settings";
@@ -127,7 +126,7 @@ export default function CalendarMeetingsScreen({
   // Internal State Collections with sync to parent if provided
   const [internalEvents, setInternalEvents] = useState<CalendarEvent[]>([]);
   const [internalAtas, setInternalAtas] = useState<MeetingAta[]>([]);
-  const [tasks, setTasks] = useState<IntegratedTask[]>(MOCK_INTEGRATED_TASKS);
+  const [tasks, setTasks] = useState<IntegratedTask[]>([]);
 
   const events = propEvents || internalEvents;
   const setEvents = (newEvents: CalendarEvent[]) => {
