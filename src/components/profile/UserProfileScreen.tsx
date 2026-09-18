@@ -88,26 +88,6 @@ function toFormProfile(profile?: AxionProfile | null): UserProfileData {
   };
 }
 
-const ACCESS_PERMISSIONS = [
-  {
-    category: "Espaços & Hardware Físico",
-    items: [
-      { name: "Sala de Conselho Executivo & VIP", clearance: "Nível 5 (Total)", status: "Ativo" },
-      { name: "Datacenter & Servidores Vault", clearance: "Nível 5 (Biométrico)", status: "Ativo" },
-      { name: "Controlo Geral de Clima & Energia", clearance: "Supervisor", status: "Ativo" },
-      { name: "AIVA Neural Lab & Dispositivos Beacon", clearance: "Root Access", status: "Ativo" },
-    ]
-  },
-  {
-    category: "Sistema Operativo & Dados",
-    items: [
-      { name: "Administração Geral do Espaço de Trabalho", clearance: "Super Admin", status: "Concedido" },
-      { name: "Gestão de Utilizadores, Convites & Funções", clearance: "Total", status: "Concedido" },
-      { name: "Acesso a Auditorias de Segurança & Logs", clearance: "Compliance", status: "Concedido" },
-    ]
-  }
-];
-
 const RECENT_ACTIVITIES = [
   { action: "Atualizou o ponto de ajuste de temperatura da Sala de Reunião para 21.5°C", time: "Hoje às 16:40", tag: "CLIMA & IOT" },
   { action: "Aprovou a publicação da nova versão do projeto Orion Alpha", time: "Hoje às 14:15", tag: "PROJETOS" },
@@ -657,38 +637,6 @@ export default function UserProfileScreen({
                 </div>
               </div>
 
-              {ACCESS_PERMISSIONS.map((group, gi) => (
-                <div key={gi} className="flex flex-col gap-3">
-                  <span className="text-[10px] font-mono tracking-widest text-[var(--axion-accent)] uppercase font-bold">
-                    {group.category}
-                  </span>
-
-                  <div className="flex flex-col divide-y divide-white/5 border-t border-b border-white/10">
-                    {group.items.map((perm, pi) => (
-                      <div
-                        key={pi}
-                        className="py-3 flex items-center justify-between"
-                      >
-                        <div className="flex items-center gap-3">
-                          <ShieldCheck size={16} className="text-emerald-400 shrink-0" />
-                          <div className="flex flex-col">
-                            <span className="text-xs font-medium text-white font-sans">
-                              {perm.name}
-                            </span>
-                            <span className="text-[11px] text-white/40 font-mono">
-                              Nível: {perm.clearance}
-                            </span>
-                          </div>
-                        </div>
-
-                        <span className="text-[10px] font-mono text-emerald-400 bg-emerald-400/10 px-2.5 py-0.5 rounded-full border border-emerald-400/20 font-semibold">
-                          {perm.status}
-                        </span>
-                      </div>
-                    ))}
-                  </div>
-                </div>
-              ))}
             </motion.div>
           )}
 
