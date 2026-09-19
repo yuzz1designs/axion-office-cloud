@@ -28,9 +28,11 @@ interface AuthStatus {
   currentDeviceId?: string;
 }
 
+const INITIAL_QUOTES_GMAIL_RETURN = new URLSearchParams(window.location.search).get("quotes-gmail");
+
 export default function App() {
   const reducedMotion = useReducedMotion();
-  const quotesGmailReturn = new URLSearchParams(window.location.search).get("quotes-gmail");
+  const quotesGmailReturn = INITIAL_QUOTES_GMAIL_RETURN;
   const [enteringOffice, setEnteringOffice] = useState(false);
   const desktop = isAxionDesktop(window.location.href);
   const initialDesktopOAuthReturn = getDesktopOAuthReturnState(window.location.href);
