@@ -16,7 +16,7 @@ export async function handleQuoteApi(req: IncomingMessage, res: ServerResponse, 
     const user = await authenticateSupabaseUser(readSessionToken(req.headers.cookie), backend.client.auth, getAllowedEmails());
     if (!user) return json(res, 401, { error: "Inicia sessão com uma conta AXION autorizada." });
     const store = new QuoteStore(backend.client);
-    if (url.pathname === "/api/quotes" && req.method === "GET") return json(res, 200, { requests: await store.listRequests(user.id), quotes: await store.listQuotes(user.id), services: await store.listServices(user.id) });
+    if (url.pathname === "/api/quotes" && req.method === "GET") { const [requests, quotes, services, members] = await Promise.all([store.listRequests(user.id), store.listQuotes(user.id), store.listServices(user.id), store.listMembers(user.id)]); return json(res, 200, { requests, quotes, services, members }); }
     if (url.pathname === "/api/quotes" && req.method === "POST") { const quote = await store.createQuote(user.id, await body(req)); await recordTeamActivity(backend.client, user.id, "quote.created", "quote", quote.id, { name: quote.reference }); return json(res, 201, { quote }); }
     if (url.pathname === "/api/quotes/requests" && req.method === "POST") { const request = await store.createRequest(user.id, await body(req)); await recordTeamActivity(backend.client, user.id, "quote.request.created", "quote_request", request.id, { name: request.companyName }); return json(res, 201, { request }); }
     if (url.pathname === "/api/quotes/services" && req.method === "POST") return json(res, 201, { service: await store.saveService(user.id, await body(req)) });

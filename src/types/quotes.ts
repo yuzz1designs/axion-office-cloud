@@ -48,4 +48,11 @@ export interface QuoteTotals {
   marginPercent: number | null; effectiveHourlyRateCents: number | null; performanceItems: QuoteItem[];
 }
 
-export interface QuotesPayload { requests: QuoteRequest[]; quotes: Quote[]; services: QuoteService[]; }
+export interface QuoteWorkspaceMember { userId: string; name: string; email: string; }
+
+export interface QuotesPayload {
+  requests: QuoteRequest[];
+  quotes: Quote[];
+  services: QuoteService[];
+  members: QuoteWorkspaceMember[];
+}
