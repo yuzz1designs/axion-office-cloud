@@ -3,7 +3,8 @@ import test from "node:test";
 import { GmailQuotesClient, classifyGmailQuoteCandidate } from "./gmailQuotesClient";
 const message = (subject: string, body: string, from = "Cliente <cliente@example.com>") => ({ messageId: "m1", threadId: "t1", receivedAt: "2026-09-19T00:00:00Z", from, subject, body });
 test("classifica pedidos comerciais sem inventar campos", () => { const result = classifyGmailQuoteCandidate(message("Pedido de orçamento", "Precisamos de um website")); assert.equal(result?.contactEmail, "cliente@example.com"); assert.match(result?.requestSummary || "", /website/); });
-test("exclui newsletters e mensagens sem intenção comercial", () => { assert.equal(classifyGmailQuoteCandidate(message("Newsletter", "Novidades de marketing", "no-reply@example.com")), null); assert.equal(classifyGmailQuoteCandidate(message("Olá", "Obrigado pela reunião")), null); });
+test("classifica pedidos com linguagem de intenção e serviço", () => { assert.ok(classifyGmailQuoteCandidate(message("Novo projeto", "Gostaria de falar convosco porque precisamos de branding."))); });
+test("exclui newsletters e mensagens sem intenção comercial", () => { assert.equal(classifyGmailQuoteCandidate(message("Newsletter", "Novidades de marketing", "no-reply@example.com")), null); assert.equal(classifyGmailQuoteCandidate(message("Olá", "Obrigado pela reunião")), null); assert.equal(classifyGmailQuoteCandidate(message("Keep building and earn 1% back on sales", "Marketing automation for your store. Manage email preferences", "Shopify <email@email.shopify.com>")), null); assert.equal(classifyGmailQuoteCandidate(message("Supa Update Sep 2026", "Everything that happened this month. Unsubscribe", "Supabase <welcome@supabase.com>")), null); });
 
 test("default fetch preserves the Worker global receiver for Gmail", async (t) => {
   t.mock.method(globalThis, "fetch", async function (this: unknown, input: string | URL | Request) {
