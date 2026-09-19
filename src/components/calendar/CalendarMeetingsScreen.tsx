@@ -175,7 +175,7 @@ export default function CalendarMeetingsScreen({
   const [quickTaskInput, setQuickTaskInput] = useState("");
   const [quickTaskPriority, setQuickTaskPriority] = useState<"high" | "medium" | "low">("medium");
   const [quickTaskDate, setQuickTaskDate] = useState(localDate);
-  const [quickTaskDueTime, setQuickTaskDueTime] = useState("18:00");
+  const [quickTaskDueTime, setQuickTaskDueTime] = useState("");
   const [quickTaskDuration, setQuickTaskDuration] = useState("30");
   const [quickTaskNotes, setQuickTaskNotes] = useState("");
 
@@ -433,6 +433,7 @@ export default function CalendarMeetingsScreen({
         setCurrentMonth(createdMonth - 1);
       }
       setQuickTaskInput("");
+      setQuickTaskDueTime("");
       setQuickTaskNotes("");
     } catch (error) {
       setFeedbackToast({ title: "Tarefa não criada", message: error instanceof Error ? error.message : "Tenta novamente.", type: "warning" });
@@ -938,8 +939,17 @@ export default function CalendarMeetingsScreen({
                     <input type="date" value={quickTaskDate} onChange={(e) => setQuickTaskDate(e.target.value)} className="bg-black/30 border border-white/10 rounded px-2 py-1.5 text-[10px] text-white/70 focus:outline-none focus:border-white/30" />
                   </label>
                   <label className="flex flex-col gap-1 text-[9px] font-mono uppercase text-white/35">
-                    Hora
-                    <input type="time" value={quickTaskDueTime} onChange={(e) => setQuickTaskDueTime(e.target.value)} className="bg-black/30 border border-white/10 rounded px-2 py-1.5 text-[10px] text-white/70 focus:outline-none focus:border-white/30" />
+                    <span className="flex items-center justify-between gap-2">
+                      Hora <span className="normal-case tracking-normal text-white/25">opcional</span>
+                    </span>
+                    <div className="flex items-center gap-1.5">
+                      <input aria-label="Hora limite opcional" type="time" value={quickTaskDueTime} onChange={(e) => setQuickTaskDueTime(e.target.value)} className="min-w-0 flex-1 bg-black/30 border border-white/10 rounded px-2 py-1.5 text-[10px] text-white/70 focus:outline-none focus:border-white/30" />
+                      {quickTaskDueTime && (
+                        <button type="button" onClick={() => setQuickTaskDueTime("")} className="px-2 py-1.5 rounded border border-white/10 text-[9px] text-white/45 normal-case hover:text-white hover:border-white/25 transition-colors">
+                          Sem hora
+                        </button>
+                      )}
+                    </div>
                   </label>
                   <label className="flex flex-col gap-1 text-[9px] font-mono uppercase text-white/35">
                     Duração

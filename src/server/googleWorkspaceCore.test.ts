@@ -137,3 +137,19 @@ test("preserva duração, hora e prioridade dentro das notas Google Tasks", () =
   assert.equal(restored.priority, "high");
   assert.equal(restored.notes, "Cliente XPTO");
 });
+
+test("permite criar uma tarefa com dia mas sem hora limite", () => {
+  const payload = toGoogleTask({
+    title: "Tarefa sem hora",
+    dueDate: "2026-09-19",
+    dueTime: "",
+    priority: "medium",
+    completed: false,
+    estimatedMinutes: 30,
+  });
+  assert.equal(payload.due, "2026-09-19T00:00:00.000Z");
+  assert.doesNotMatch(payload.notes, /;time=/);
+  const restored = fromGoogleTask({ id: "task-no-time", ...payload });
+  assert.equal(restored.dueDate, "2026-09-19");
+  assert.equal(restored.dueTime, undefined);
+});
