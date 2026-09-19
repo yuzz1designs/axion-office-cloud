@@ -15,7 +15,9 @@
     "AXION_RUNTIME": "cloudflare",
     "AXION_AIVA_ENABLED": "false",
     "GOOGLE_OAUTH_REDIRECT_URI": "https://axion-office-cloud.nelsonafonsoprofissional.workers.dev/api/google/oauth/callback",
-    "GOOGLE_WORKSPACE_OAUTH_REDIRECT_URI": "https://axion-office-cloud.nelsonafonsoprofissional.workers.dev/api/google/workspace/oauth/callback"
+    "GOOGLE_WORKSPACE_OAUTH_REDIRECT_URI": "https://axion-office-cloud.nelsonafonsoprofissional.workers.dev/api/google/workspace/oauth/callback",
+    "GOOGLE_QUOTES_GMAIL_REDIRECT_URI": "https://axion-office-cloud.nelsonafonsoprofissional.workers.dev/api/quotes/gmail/oauth/callback",
+    "AXION_QUOTES_GMAIL": "axionportugal@gmail.com"
   },
   "observability": { "enabled": true }
 }

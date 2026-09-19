@@ -23,6 +23,7 @@ import DocumentRepositoryScreen from "../documents/DocumentRepositoryScreen";
 import ClientsScreen from "../clients/ClientsScreen";
 import CalendarMeetingsScreen from "../calendar/CalendarMeetingsScreen";
 import PaymentsScreen from "../payments/PaymentsScreen";
+import QuotesScreen from "../quotes/QuotesScreen";
 import NotificationsScreen from "../notifications/NotificationsScreen";
 import SidebarNav, { NavTabId } from "../navigation/SidebarNav";
 import SettingsPage from "../settings/SettingsPage";
@@ -507,6 +508,17 @@ export default function CommandCenter({
               requestedClient={aivaClientQuery}
               onRequestedClientHandled={() => setAivaClientQuery("")}
             />
+          </motion.div>
+        ) : activeTab === "quotes" ? (
+          <motion.div
+            key="quotes-tab-view"
+            initial={{ opacity: 0, y: 8, filter: "blur(4px)" }}
+            animate={{ opacity: 1, y: 0, filter: "blur(0px)" }}
+            exit={{ opacity: 0, y: -8, filter: "blur(4px)" }}
+            transition={{ duration: 0.35, ease: [0.16, 1, 0.3, 1] }}
+            className="w-full h-full overflow-y-auto pr-2 relative z-10"
+          >
+            <QuotesScreen accentColor={currentAccent} onBackToOverview={() => setActiveTab("overview")} />
           </motion.div>
         ) : activeTab === "database" ? (
           <motion.div

@@ -11,13 +11,14 @@ import {
   Sparkles,
   Database,
   FolderArchive,
-  CreditCard
+  CreditCard,
+  ReceiptText
 } from "lucide-react";
 import { AccentColorOption } from "../../types/settings";
 import { useLanguage } from "../../i18n/LanguageContext";
 import type { AxionProfile } from "../../types/profile";
 
-export type NavTabId = "overview" | "clients" | "database" | "documents" | "calendar" | "payments" | "aiva" | "settings" | "profile" | "notifications";
+export type NavTabId = "overview" | "clients" | "quotes" | "database" | "documents" | "calendar" | "payments" | "aiva" | "settings" | "profile" | "notifications";
 
 interface NavItem {
   id: NavTabId;
@@ -30,6 +31,7 @@ interface NavItem {
 const NAV_ITEMS: NavItem[] = [
   { id: "overview", label: "Painel Principal", sublabel: "Visão Geral", icon: LayoutGrid },
   { id: "clients", label: "Clientes", sublabel: "Ecossistemas & CRM", icon: Users },
+  { id: "quotes", label: "Orçamentos", sublabel: "Pipeline Comercial", icon: ReceiptText },
   { id: "database", label: "Base de Dados", sublabel: "Excel Data Sync", icon: Database },
   { id: "documents", label: "Depósito de Documentos", sublabel: "Vault Digital", icon: FolderArchive },
   { id: "calendar", label: "Agenda & Reuniões", sublabel: "Google Calendar & Tasks", icon: Calendar },
@@ -84,6 +86,7 @@ export default function SidebarNav({
   const translatedNavItems: NavItem[] = ([
     { id: "overview", label: t("nav.main"), sublabel: t("nav.overview"), icon: LayoutGrid },
     { id: "clients", label: t("nav.clients"), sublabel: "Ecossistemas & CRM", icon: Users },
+    { id: "quotes", label: t("nav.quotes"), sublabel: t("nav.quotesSub"), icon: ReceiptText },
     { id: "database", label: t("nav.database"), sublabel: t("nav.databaseSub"), icon: Database },
     { id: "documents", label: t("nav.documents"), sublabel: t("nav.documentsSub"), icon: FolderArchive },
     { id: "calendar", label: t("nav.calendar"), sublabel: t("nav.calendarSub"), icon: Calendar },

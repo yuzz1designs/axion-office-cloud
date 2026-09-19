@@ -27,5 +27,14 @@ export function describeAuditAction(action: string, metadata: Record<string, unk
   if (action === "google.workspace.disconnected") return "desligou o Google Calendar e Tasks";
   if (action === "google.drive.connected") return `ligou o Google Drive${suffix}`;
   if (action === "google.drive.disconnected") return "desligou o Google Drive";
+  if (action === "quote.request.created") return `registou o pedido de orçamento${suffix}`;
+  if (action === "quote.request.imported") return `recebeu um pedido de orçamento${suffix}`;
+  if (action === "quote.created") return `criou o orçamento${suffix}`;
+  if (action === "quote.updated") return `atualizou o orçamento${suffix}`;
+  if (action === "quote.sent") return `marcou como enviado o orçamento${suffix}`;
+  if (action === "quote.accepted") return `marcou como aceite o orçamento${suffix}`;
+  if (action === "quote.rejected") return `marcou como rejeitado o orçamento${suffix}`;
+  if (action === "google.gmail_quotes.connected") return "ligou o Gmail comercial partilhado";
+  if (action === "google.gmail_quotes.disconnected") return "desligou o Gmail comercial partilhado";
   return "publicou uma alteração no AXION OFFICE";
 }
