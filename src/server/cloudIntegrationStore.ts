@@ -76,13 +76,13 @@ export class CloudOAuthStates {
   async create(userId: string) {
     const state = randomBytes(32).toString("base64url");
     const { error } = await backend().from("oauth_pending_states").insert({ state_hash: createHash("sha256").update(state).digest("hex"), user_id: userId, provider: this.provider, expires_at: new Date(Date.now() + 300_000).toISOString() });
-    if (error) throw new Error("OAUTH_STATE_WRITE_FAILED");
+    if (error) throw new Error(`OAUTH_STATE_WRITE_FAILED:${error.message}`);
     return state;
   }
   async consume(state: string) {
     if (!state || state.length > 200) return null;
     const { data, error } = await backend().from("oauth_pending_states").delete().eq("state_hash", createHash("sha256").update(state).digest("hex")).eq("provider", this.provider).gt("expires_at", new Date().toISOString()).select("user_id").maybeSingle();
-    if (error) throw new Error("OAUTH_STATE_READ_FAILED");
+    if (error) throw new Error(`OAUTH_STATE_READ_FAILED:${error.message}`);
     return data?.user_id || null;
   }
 }
