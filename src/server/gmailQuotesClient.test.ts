@@ -6,8 +6,9 @@ test("classifica pedidos comerciais sem inventar campos", () => { const result =
 test("exclui newsletters e mensagens sem intenção comercial", () => { assert.equal(classifyGmailQuoteCandidate(message("Newsletter", "Novidades de marketing", "no-reply@example.com")), null); assert.equal(classifyGmailQuoteCandidate(message("Olá", "Obrigado pela reunião")), null); });
 
 test("default fetch preserves the Worker global receiver for Gmail", async (t) => {
-  t.mock.method(globalThis, "fetch", async function (this: unknown) {
+  t.mock.method(globalThis, "fetch", async function (this: unknown, input: string | URL | Request) {
     assert.equal(this, globalThis);
+    assert.match(String(input), /maxResults=20/);
     return new Response(JSON.stringify({ messages: [] }));
   });
   assert.deepEqual(await new GmailQuotesClient("access").listCandidates(), []);
