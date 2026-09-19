@@ -26,6 +26,26 @@ export default function QuotesScreen({ accentColor, onBackToOverview }: { accent
   const [editor, setEditor] = useState<QuoteDraft | null>(null); const [requestModal, setRequestModal] = useState<QuoteRequest | "new" | null>(null); const [catalogModal, setCatalogModal] = useState<QuoteService | "new" | null>(null); const [saving, setSaving] = useState(false); const [gmail, setGmail] = useState<any>(null); const [syncing, setSyncing] = useState(false);
   const load = useCallback(async () => { try { const [data, gmailStatus, clientData] = await Promise.all([api<QuotesPayload>("/api/quotes"), api<any>("/api/quotes/gmail/status").catch(() => null), api<{ clients: ClientOption[] }>("/api/clients").catch(() => ({ clients: [] }))]); setPayload({ ...data, members: data.members || [] }); setGmail(gmailStatus); setClients(clientData.clients || []); } catch (error) { setNotice(error instanceof Error ? error.message : "Falha ao carregar."); } finally { setLoading(false); } }, []);
   useEffect(() => { void load(); const listener = (event: Event) => { if (["quotes", "quote_requests", "quote_services"].includes((event as CustomEvent).detail?.table)) void load(); }; window.addEventListener("axion:realtime", listener); return () => window.removeEventListener("axion:realtime", listener); }, [load]);
+  useEffect(() => {
+    const url = new URL(window.location.href);
+    const result = url.searchParams.get("quotes-gmail");
+    if (!result) return;
+    const reason = url.searchParams.get("reason");
+    const email = url.searchParams.get("email");
+    if (result === "connected") {
+      setNotice("Gmail comercial ligado com sucesso. Já podes sincronizar novos pedidos.");
+    } else if (reason === "wrong-account") {
+      setNotice(`A conta ${email || "selecionada"} não corresponde ao Gmail comercial da AXION.`);
+    } else if (reason === "missing-scope") {
+      setNotice("A ligação não recebeu permissão para consultar o Gmail. Tenta ligar novamente.");
+    } else {
+      setNotice("Não foi possível concluir a ligação ao Gmail comercial. Tenta novamente.");
+    }
+    url.searchParams.delete("quotes-gmail");
+    url.searchParams.delete("reason");
+    url.searchParams.delete("email");
+    window.history.replaceState({}, document.title, `${url.pathname}${url.search}${url.hash}`);
+  }, []);
   const filteredRequests = useMemo(() => payload.requests.filter((item) => `${item.companyName} ${item.contactName} ${item.subject}`.toLowerCase().includes(search.toLowerCase()) && (requestStatus === "all" || item.status === requestStatus) && (requestSource === "all" || item.source === requestSource)).sort((a, b) => (sort === "newest" ? -1 : 1) * (new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime())), [payload.requests, search, requestStatus, requestSource, sort]);
   const filteredQuotes = useMemo(() => payload.quotes.filter((item) => `${item.reference} ${item.companyName} ${item.title}`.toLowerCase().includes(search.toLowerCase()) && (quoteStatus === "all" || item.status === quoteStatus)).sort((a, b) => (sort === "newest" ? -1 : 1) * (new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime())), [payload.quotes, search, quoteStatus, sort]);
   const pipeline = useMemo(() => ({ open: payload.requests.filter((item) => !["converted", "discarded"].includes(item.status)).length, active: payload.quotes.filter((item) => !["accepted", "rejected", "expired", "cancelled"].includes(item.status)).length, accepted: payload.quotes.filter((item) => item.status === "accepted").length }), [payload]);

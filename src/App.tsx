@@ -30,6 +30,7 @@ interface AuthStatus {
 
 export default function App() {
   const reducedMotion = useReducedMotion();
+  const quotesGmailReturn = new URLSearchParams(window.location.search).get("quotes-gmail");
   const [enteringOffice, setEnteringOffice] = useState(false);
   const desktop = isAxionDesktop(window.location.href);
   const initialDesktopOAuthReturn = getDesktopOAuthReturnState(window.location.href);
@@ -127,9 +128,9 @@ export default function App() {
         }
         const sessionBridged = config.configured ? await bridgeSupabaseSession(config) : false;
         await refreshAuthStatus();
-        if (shouldEnterAfterOAuth(oauthReturn, sessionBridged)) {
+        if (quotesGmailReturn || shouldEnterAfterOAuth(oauthReturn, sessionBridged)) {
           setScreen("command-center");
-          window.history.replaceState({}, document.title, window.location.pathname);
+          if (!quotesGmailReturn) window.history.replaceState({}, document.title, window.location.pathname);
         }
         setOauthBootstrap(false);
       } catch (error) {
@@ -245,6 +246,7 @@ export default function App() {
             className="w-full h-full"
           >
             {AIVA_ENABLED ? <AivaSessionProvider><CommandCenter
+              initialTab={quotesGmailReturn ? "quotes" : undefined}
               appearance={appearance}
               onAppearanceChange={handleAppearanceChange}
               commandCenterConfig={commandCenterConfig}
@@ -258,6 +260,7 @@ export default function App() {
               onBackToWelcome={() => void handleSignOut()}
               aivaEnabled
             /></AivaSessionProvider> : <CommandCenter
+              initialTab={quotesGmailReturn ? "quotes" : undefined}
               appearance={appearance}
               onAppearanceChange={handleAppearanceChange}
               commandCenterConfig={commandCenterConfig}

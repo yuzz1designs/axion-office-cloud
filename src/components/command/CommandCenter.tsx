@@ -53,6 +53,7 @@ import {
 } from "lucide-react";
 
 interface CommandCenterProps {
+  initialTab?: NavTabId;
   onBackToWelcome?: () => void;
   profile?: AxionProfile | null;
   profileRequired?: boolean;
@@ -75,6 +76,7 @@ function AivaNavigationBridge({ onNavigate, onClient, onDocument, onMeeting, sec
 }
 
 export default function CommandCenter({ 
+  initialTab,
   onBackToWelcome,
   profile,
   profileRequired = false,
@@ -90,7 +92,7 @@ export default function CommandCenter({
 }: CommandCenterProps) {
   const { language, t } = useLanguage();
   const reducedMotion = useReducedMotion();
-  const [activeTab, setActiveTab] = useState<NavTabId>("overview");
+  const [activeTab, setActiveTab] = useState<NavTabId>(initialTab ?? "overview");
   const [aivaClientQuery, setAivaClientQuery] = useState("");
   const [aivaDocumentQuery, setAivaDocumentQuery] = useState("");
   const [workspaceTasks, setWorkspaceTasks] = useState<IntegratedTask[]>([]);
