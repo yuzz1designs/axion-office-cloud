@@ -16,6 +16,7 @@ import { handleMeetingApi } from "./src/server/meetingApi";
 import { handleOfficePresenceApi } from "./src/server/officePresenceApi";
 import { handleQuoteApi } from "./src/server/quoteApi";
 import { handleGmailQuotesApi } from "./src/server/gmailQuotesApi";
+import { handleTeamUpdateApi } from "./src/server/teamUpdateApi";
 
 const app = express();
 const port = Number(process.env.PORT || 3000);
@@ -36,6 +37,7 @@ app.use((req, res, next) => void handleAuthApi(req, res, next));
 app.use((req, res, next) => void handleFinanceApi(req, res, next));
 app.use((req, res, next) => void handleTeamActivityApi(req, res, next));
 app.use((req, res, next) => void handleOfficePresenceApi(req, res, next));
+app.use((req, res, next) => void handleTeamUpdateApi(req, res, next));
 app.use((req, res, next) => void handleNotificationApi(req, res, next));
 app.use((req, res, next) => void handleClientApi(req, res, next));
 app.use((req, res, next) => void handleMeetingApi(req, res, next));

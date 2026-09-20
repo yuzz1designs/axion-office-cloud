@@ -36,5 +36,6 @@ export function describeAuditAction(action: string, metadata: Record<string, unk
   if (action === "quote.rejected") return `marcou como rejeitado o orçamento${suffix}`;
   if (action === "google.gmail_quotes.connected") return "ligou o Gmail comercial partilhado";
   if (action === "google.gmail_quotes.disconnected") return "desligou o Gmail comercial partilhado";
+  if (action === "team.update.published") return `publicou o update${suffix}`;
   return "publicou uma alteração no AXION OFFICE";
 }

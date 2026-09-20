@@ -769,7 +769,7 @@ export default function CommandCenter({
 
         </div>
 
-        <OfficePresence presence={officePresence} currentUserId={profile?.id} now={currentTime.getTime()} />
+        <OfficePresence presence={officePresence} currentUserId={profile?.id} now={currentTime.getTime()} accent={currentAccent.hex} />
 
         {/* ==================== MIDDLE ROW (CENTRAL CORE & REFINED SPACIOUS LAYOUT) ==================== */}
         <div className="flex-1 flex flex-col lg:flex-row items-center justify-between gap-8 lg:gap-14 my-2 relative w-full">

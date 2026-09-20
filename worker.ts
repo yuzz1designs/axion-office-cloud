@@ -13,8 +13,9 @@ import { handleGoogleSheetsApi } from "./src/server/googleSheetsApi";
 import { handleOfficePresenceApi } from "./src/server/officePresenceApi";
 import { handleQuoteApi } from "./src/server/quoteApi";
 import { handleGmailQuotesApi } from "./src/server/gmailQuotesApi";
+import { handleTeamUpdateApi } from "./src/server/teamUpdateApi";
 
-const handlers = [handleOfficePresenceApi, handleAuthApi, handleFinanceApi, handleMeetingApi, handleClientApi, handleGmailQuotesApi, handleQuoteApi, handleNotificationApi, handleTeamActivityApi, handleGoogleOAuthApi, handleGoogleWorkspaceApi, handleGoogleDriveApi, handleGoogleSheetsApi];
+const handlers = [handleOfficePresenceApi, handleTeamUpdateApi, handleAuthApi, handleFinanceApi, handleMeetingApi, handleClientApi, handleGmailQuotesApi, handleQuoteApi, handleNotificationApi, handleTeamActivityApi, handleGoogleOAuthApi, handleGoogleWorkspaceApi, handleGoogleDriveApi, handleGoogleSheetsApi];
 const server = createServer(async (req, res) => {
   res.setHeader("Content-Type", "application/json; charset=utf-8");
   res.setHeader("Cache-Control", "no-store");

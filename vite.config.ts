@@ -13,6 +13,10 @@ import { handleTeamActivityApi } from './src/server/teamActivityApi';
 import { handleNotificationApi } from './src/server/notificationApi';
 import { handleClientApi } from './src/server/clientApi';
 import { handleMeetingApi } from './src/server/meetingApi';
+import { handleOfficePresenceApi } from './src/server/officePresenceApi';
+import { handleTeamUpdateApi } from './src/server/teamUpdateApi';
+import { handleQuoteApi } from './src/server/quoteApi';
+import { handleGmailQuotesApi } from './src/server/gmailQuotesApi';
 
 export default defineConfig(({ mode }) => {
   const serverEnv = loadEnv(mode, process.cwd(), 'OPENAI_');
@@ -36,9 +40,13 @@ export default defineConfig(({ mode }) => {
           server.middlewares.use((req, res, next) => void handleAuthApi(req, res, next));
           server.middlewares.use((req, res, next) => void handleFinanceApi(req, res, next));
           server.middlewares.use((req, res, next) => void handleTeamActivityApi(req, res, next));
+          server.middlewares.use((req, res, next) => void handleOfficePresenceApi(req, res, next));
+          server.middlewares.use((req, res, next) => void handleTeamUpdateApi(req, res, next));
           server.middlewares.use((req, res, next) => void handleNotificationApi(req, res, next));
           server.middlewares.use((req, res, next) => void handleClientApi(req, res, next));
           server.middlewares.use((req, res, next) => void handleMeetingApi(req, res, next));
+          server.middlewares.use((req, res, next) => void handleGmailQuotesApi(req, res, next));
+          server.middlewares.use((req, res, next) => void handleQuoteApi(req, res, next));
         },
       },
     ],
