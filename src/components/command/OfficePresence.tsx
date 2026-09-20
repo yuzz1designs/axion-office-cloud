@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useState, type ReactNode } from "react";
 import { AnimatePresence, motion } from "motion/react";
-import { ArrowUpRight, Clock3, FileText, Plus, Send, X } from "lucide-react";
+import { Clock3, FileText, Plus, Send, X } from "lucide-react";
 import { isOfficeMemberOnline, officeSessionTime, type OfficePresenceSnapshot } from "../../lib/officePresence";
 
 interface TeamUpdateItem {
@@ -138,10 +138,7 @@ export default function OfficePresence({ presence, currentUserId, now, accent }:
               </li>;
             })}
           </ul>}
-        <div className="mt-3 border-t border-white/[.06] pt-3">
-          <div className="mb-2 flex items-center justify-between"><span className="text-[9px] font-mono uppercase tracking-[.18em] text-white/30">Updates recentes</span>{updates.length > 3 && <button onClick={() => setHistoryOpen(true)} className="text-[9px] text-white/30 hover:text-white/65">Ver todos <ArrowUpRight size={10} className="ml-1 inline" /></button>}</div>
-          {updatesError && !composerOpen ? <p className="text-[10px] text-amber-200/70">{updatesError}</p> : updates.length === 0 ? <p className="text-[10px] text-white/25">Ainda não foram publicados updates diários.</p> : <div className="grid gap-2 md:grid-cols-3">{updates.slice(0, 3).map((update) => <button key={update.id} onClick={() => setSelected(update)} className="group min-w-0 rounded-xl border border-white/[.055] bg-black/10 px-3 py-2.5 text-left transition hover:border-white/[.12] hover:bg-white/[.035]"><div className="flex items-center justify-between gap-2"><span className="truncate text-[9px] font-semibold uppercase tracking-wider" style={{ color: accent }}>{update.authorName}</span><span className="shrink-0 text-[8px] text-white/20">{updateDate(update.createdAt)}</span></div><p className="mt-1 truncate text-[11px] text-white/70">{update.title}</p><p className="mt-1 line-clamp-1 text-[9px] text-white/25">{update.description}</p></button>)}</div>}
-        </div>
+        {updatesError && !composerOpen && <p className="mt-2 text-right text-[10px] text-amber-200/70">{updatesError}</p>}
       </section>
 
       <AnimatePresence>
