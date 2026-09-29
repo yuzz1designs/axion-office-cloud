@@ -1,6 +1,6 @@
 import React from "react";
 import { motion, AnimatePresence } from "motion/react";
-import { Calendar, Clock, Video, Users, Check, X, ArrowRight, Sparkles, BellRing } from "lucide-react";
+import { Calendar, Clock, Users, Check, ArrowRight, BellRing } from "lucide-react";
 import { MeetingInviteNotification } from "../../data/calendarMockData";
 import { AccentColorOption } from "../../types/settings";
 
@@ -104,7 +104,7 @@ export default function MeetingInviteBanner({
               onClick={() => onDismiss(invite.id)}
               className="px-3 py-1.5 text-xs font-sans text-white/40 hover:text-white transition-colors cursor-pointer"
             >
-              Ocultar aviso
+              <Check size={12} className="mr-1 inline" />Entendido
             </button>
 
             <button

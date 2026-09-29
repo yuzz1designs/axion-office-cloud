@@ -10,6 +10,9 @@ export function describeAuditAction(action: string, metadata: Record<string, unk
   if (action === "task.updated") return metadata.completed ? `concluiu a tarefa${suffix}` : `atualizou a tarefa${suffix}`;
   if (action === "meeting.created") return `agendou a reunião${suffix}`;
   if (action === "meeting.updated") return `atualizou a reunião${suffix}`;
+  if (action === "meeting.completed") return `concluiu a reunião${suffix}`;
+  if (action === "meeting.record.updated") return `atualizou a ficha da reunião${suffix}`;
+  if (action === "meeting.task.created") return `atribuiu a tarefa${suffix}`;
   if (action === "profile.updated") return "atualizou o perfil";
   if (action === "profile.created") return "configurou o perfil";
   if (action === "client.created") return `criou o cliente${suffix}`;

@@ -43,6 +43,7 @@ import { AccentColorOption } from "../../types/settings";
 import type { AxionProfile } from "../../types/profile";
 import type { WorkspaceMeetingMember } from "../../server/meetingStore";
 import PastMeetingsView from "./PastMeetingsView";
+import MeetingRecordModal from "./MeetingRecordModal";
 import { groupTasksByDate, replaceTaskCompletion } from "./calendarViewCore";
 
 interface CalendarMeetingsScreenProps {
@@ -54,6 +55,8 @@ interface CalendarMeetingsScreenProps {
   onAtasChange?: (atas: MeetingAta[]) => void;
   selectedMeetingId?: string;
   onSelectMeetingId?: (id: string) => void;
+  openRecordId?: string;
+  onRecordOpened?: () => void;
   onBroadcastMeetingInvite?: (invite: MeetingInviteNotification) => void;
   currentUserRole?: string;
   currentUser?: AxionProfile | null;
@@ -103,6 +106,8 @@ export default function CalendarMeetingsScreen({
   onAtasChange,
   selectedMeetingId: propSelectedMeetingId,
   onSelectMeetingId,
+  openRecordId,
+  onRecordOpened,
   onBroadcastMeetingInvite,
   currentUserRole = "Senior Partner & Brand Architect",
   currentUser,
@@ -172,6 +177,7 @@ export default function CalendarMeetingsScreen({
   // Modals & Inline Inputs
   const [showNewEventModal, setShowNewEventModal] = useState(false);
   const [editingEventId, setEditingEventId] = useState("");
+  const [recordEvent, setRecordEvent] = useState<CalendarEvent | null>(null);
   const [quickTaskInput, setQuickTaskInput] = useState("");
   const [quickTaskPriority, setQuickTaskPriority] = useState<"high" | "medium" | "low">("medium");
   const [quickTaskDate, setQuickTaskDate] = useState(localDate);
@@ -259,6 +265,15 @@ export default function CalendarMeetingsScreen({
   const selectedEvent = useMemo(() => {
     return events.find((e) => e.id === selectedEventId) || events[0] || null;
   }, [events, selectedEventId]);
+
+  useEffect(() => {
+    if (!openRecordId) return;
+    const target = events.find((event) => event.id === openRecordId);
+    if (!target) return;
+    setSelectedEventId(target.id);
+    setRecordEvent(target);
+    onRecordOpened?.();
+  }, [events, openRecordId, onRecordOpened]);
 
   // Linked ATA
   const linkedAta = useMemo(() => {
@@ -1114,6 +1129,10 @@ export default function CalendarMeetingsScreen({
 
                     {/* Meeting management and location actions */}
                     <div className="flex items-center gap-2.5 shrink-0">
+                    <button onClick={() => setRecordEvent(selectedEvent)} className="flex items-center gap-2 px-3 py-2 border border-white/15 text-white/75 hover:text-white hover:border-white/35 text-xs rounded-sm" title="Abrir ficha da reunião">
+                      <FileText size={13} />
+                      <span>Abrir ficha</span>
+                    </button>
                     {selectedEvent.editable && selectedEvent.status === "scheduled" && (
                       <button onClick={() => openMeetingEditor(selectedEvent)} className="flex items-center gap-2 px-3 py-2 border border-white/15 text-white/75 hover:text-white hover:border-white/35 text-xs rounded-sm" title="Editar reunião agendada">
                         <SlidersHorizontal size={13} />
@@ -1438,6 +1457,11 @@ export default function CalendarMeetingsScreen({
       {/* 6. MODAL: AGENDAR REUNIÃO & CONVOCAR EQUIPA (LIDERANÇA) */}
       {/* ========================================================================= */}
       <AnimatePresence>
+        {recordEvent && <MeetingRecordModal event={recordEvent} accent={accentColor.hex} onClose={() => setRecordEvent(null)} onCompleted={(completed) => {
+          setEvents(events.map((item) => item.id === completed.id ? completed : item));
+          setRecordEvent(completed);
+          setFeedbackToast({ title: "Reunião concluída", message: "A reunião e as tarefas de presença foram marcadas como concluídas.", type: "success" });
+        }} />}
         {showNewEventModal && (
           <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/80 backdrop-blur-md">
             <motion.div

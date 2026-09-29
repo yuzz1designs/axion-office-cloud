@@ -112,6 +112,7 @@ export default function CommandCenter({
   const [atas, setAtas] = useState<MeetingAta[]>([]);
   const [meetingInvites, setMeetingInvites] = useState<MeetingInviteNotification[]>([]);
   const [selectedMeetingId, setSelectedMeetingId] = useState<string>("");
+  const [openMeetingRecordId, setOpenMeetingRecordId] = useState<string>("");
   const navigateFromAiva = React.useCallback((section: NavTabId) => setActiveTab(section), []);
   const openClientFromAiva = React.useCallback((query: string) => setAivaClientQuery(query), []);
   const openDocumentFromAiva = React.useCallback((query: string) => setAivaDocumentQuery(query), []);
@@ -144,6 +145,7 @@ export default function CommandCenter({
 
   const handleAcceptInviteAndOpen = (eventId: string) => {
     setSelectedMeetingId(eventId);
+    setOpenMeetingRecordId(eventId);
     setActiveTab("calendar");
   };
 
@@ -570,6 +572,8 @@ export default function CommandCenter({
               onAtasChange={setAtas}
               selectedMeetingId={selectedMeetingId}
               onSelectMeetingId={setSelectedMeetingId}
+              openRecordId={openMeetingRecordId}
+              onRecordOpened={() => setOpenMeetingRecordId("")}
               onBroadcastMeetingInvite={handleBroadcastMeetingInvite}
               currentUserRole={profile?.role || "Membro AXION"}
               currentUser={profile}

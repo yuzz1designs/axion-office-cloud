@@ -28,6 +28,8 @@ export interface CalendarEvent {
   gcalEventId: string;
   updatedAt?: string;
   editable?: boolean;
+  meetingMinutes?: string;
+  meetingNotes?: string;
 }
 
 export interface IntegratedTask {
