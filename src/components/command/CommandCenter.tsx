@@ -758,7 +758,10 @@ export default function CommandCenter({
             {/* Back button to simulated welcome for demonstration */}
             {onBackToWelcome && (
               <button 
-                onClick={onBackToWelcome}
+                onClick={() => {
+                  void fetch("/api/team/presence", { method: "DELETE", keepalive: true })
+                    .finally(() => onBackToWelcome());
+                }}
                 title="Sair do sistema"
                 className="group flex items-center justify-center w-10 h-10 rounded-sm bg-white/5 hover:bg-white/10 border border-white/5 hover:border-white/15 transition-all duration-300 cursor-pointer"
               >

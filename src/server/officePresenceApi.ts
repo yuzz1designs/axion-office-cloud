@@ -12,7 +12,7 @@ function json(res: ServerResponse, status: number, body: unknown) {
 
 export async function handleOfficePresenceApi(req: IncomingMessage, res: ServerResponse, next: () => void) {
   if (new URL(req.url || "/", "http://localhost").pathname !== "/api/team/presence") return next();
-  if (req.method !== "POST") return json(res, 405, { error: "Método não permitido." });
+  if (req.method !== "POST" && req.method !== "DELETE") return json(res, 405, { error: "Método não permitido." });
   try {
     const backend = getSupabaseBackend();
     if (!backend) return json(res, 503, { error: "Presença indisponível." });
@@ -21,6 +21,11 @@ export async function handleOfficePresenceApi(req: IncomingMessage, res: ServerR
     const { data: membership, error: membershipError } = await backend.client.from("workspace_members")
       .select("workspace_id").eq("user_id", user.id).eq("status", "active").single();
     if (membershipError || !membership) return json(res, 403, { error: "Sem acesso ao Office." });
+    if (req.method === "DELETE") {
+      const { error } = await backend.client.from("office_presence").delete().eq("user_id", user.id);
+      if (error) throw error;
+      return json(res, 200, { ok: true });
+    }
     // Identity and timestamps come from the authenticated session/database, never the request body.
     const { data: serverTime, error: heartbeatError } = await backend.client.rpc("heartbeat_office_presence", { p_user_id: user.id });
     if (heartbeatError) throw heartbeatError;

@@ -43,16 +43,31 @@ export function useOfficePresence(userId?: string) {
     };
     const visible = () => { if (document.visibilityState === "visible") void refresh(); };
     void refresh();
-    const timer = window.setInterval(() => void refresh(), 25_000);
+    let timer: number | undefined;
+    let heartbeatWorker: Worker | undefined;
+    let heartbeatWorkerUrl: string | undefined;
+    try {
+      heartbeatWorkerUrl = URL.createObjectURL(new Blob([
+        "setInterval(() => postMessage('heartbeat'), 25000);",
+      ], { type: "application/javascript" }));
+      heartbeatWorker = new Worker(heartbeatWorkerUrl);
+      heartbeatWorker.onmessage = () => void refresh();
+    } catch {
+      timer = window.setInterval(() => void refresh(), 25_000);
+    }
     window.addEventListener("online", refresh);
     window.addEventListener("focus", refresh);
+    window.addEventListener("pageshow", refresh);
     document.addEventListener("visibilitychange", visible);
     return () => {
       stopped = true;
       controller?.abort();
-      window.clearInterval(timer);
+      if (timer !== undefined) window.clearInterval(timer);
+      heartbeatWorker?.terminate();
+      if (heartbeatWorkerUrl) URL.revokeObjectURL(heartbeatWorkerUrl);
       window.removeEventListener("online", refresh);
       window.removeEventListener("focus", refresh);
+      window.removeEventListener("pageshow", refresh);
       document.removeEventListener("visibilitychange", visible);
     };
   }, [userId]);
@@ -119,7 +134,7 @@ export default function OfficePresence({ presence, currentUserId, now, accent }:
         <div className="mb-3 flex flex-wrap items-center justify-between gap-3">
           <div>
             <h2 className="text-[10px] font-mono font-bold uppercase tracking-widest text-white/60">Equipa no Office</h2>
-            <span className="text-[9px] text-white/30">Sessão atual · Offline após 2 min sem ligação</span>
+            <span className="text-[9px] text-white/30">Sessão atual · Atualização automática de presença</span>
           </div>
           <div className="flex items-center gap-2">
             <button type="button" onClick={() => setHistoryOpen(true)} className="rounded-lg border border-white/[.07] px-2.5 py-1.5 text-[10px] text-white/45 transition hover:bg-white/[.05] hover:text-white/75">Últimos updates</button>
