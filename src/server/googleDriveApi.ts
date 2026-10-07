@@ -1,7 +1,7 @@
 import type { IncomingMessage, ServerResponse } from "node:http";
 import { createSign } from "node:crypto";
 import { readFileSync } from "node:fs";
-import { decodeUploadFileName, mapDriveFile, MAX_DRIVE_UPLOAD_BYTES, validateDriveUpload, type DriveFile } from "./driveDocument";
+import { decodeUploadFileName, mapDriveFile, MAX_DRIVE_UPLOAD_BYTES, validateDriveImagePreview, validateDriveUpload, type DriveFile } from "./driveDocument";
 import { uploadDriveDocument } from "./googleDriveUpload";
 import { getGoogleOAuthClient, getGoogleOAuthStore } from "./googleOAuthApi";
 import { authenticateSupabaseUser, readSessionToken } from "./supabaseAuth";
@@ -73,7 +73,7 @@ async function getAccessToken(credentials: ServiceAccount) {
   return result.access_token;
 }
 
-async function listDocuments() {
+export async function listDocuments() {
   const credentials = getServiceAccount();
   if (!credentials) throw new Error("GOOGLE_DRIVE_NOT_CONFIGURED");
   const token = await getAccessToken(credentials);
@@ -91,6 +91,24 @@ async function listDocuments() {
   const result = await response.json() as { files?: DriveFile[]; error?: { message?: string } };
   if (!response.ok) throw new Error(result.error?.message || "GOOGLE_DRIVE_REQUEST_FAILED");
   return (result.files || []).map(mapDriveFile);
+}
+
+export async function getDriveImage(fileId: string) {
+  validateDriveImagePreview({ fileId, folderId: DOCS_FOLDER_ID, mimeType: "image/pending", parents: [DOCS_FOLDER_ID] });
+  const credentials = getServiceAccount();
+  if (!credentials) throw new Error("GOOGLE_DRIVE_NOT_CONFIGURED");
+  const token = await getAccessToken(credentials);
+  const metadataResponse = await fetch(`https://www.googleapis.com/drive/v3/files/${encodeURIComponent(fileId)}?fields=id,name,mimeType,size,parents&supportsAllDrives=true`, {
+    headers: { Authorization: `Bearer ${token}` },
+  });
+  const metadata = await metadataResponse.json() as { mimeType?: string; size?: string; parents?: string[]; error?: { message?: string } };
+  if (!metadataResponse.ok) throw new Error(metadata.error?.message || "DRIVE_PREVIEW_NOT_FOUND");
+  validateDriveImagePreview({ fileId, folderId: DOCS_FOLDER_ID, ...metadata });
+  const contentResponse = await fetch(`https://www.googleapis.com/drive/v3/files/${encodeURIComponent(fileId)}?alt=media&supportsAllDrives=true`, {
+    headers: { Authorization: `Bearer ${token}` },
+  });
+  if (!contentResponse.ok) throw new Error("DRIVE_PREVIEW_DOWNLOAD_FAILED");
+  return { mimeType: metadata.mimeType, bytes: Buffer.from(await contentResponse.arrayBuffer()) };
 }
 
 export async function uploadDocumentToDocs(req: IncomingMessage, userId: string) {
@@ -134,6 +152,18 @@ export async function handleGoogleDriveApi(req: IncomingMessage, res: ServerResp
         syncedAt: new Date().toISOString(),
       });
     }
+    const previewMatch = url.pathname.match(/^\/api\/documents\/([^/]+)\/content$/);
+    if (previewMatch && req.method === "GET") {
+      const image = await getDriveImage(decodeURIComponent(previewMatch[1]));
+      res.statusCode = 200;
+      res.setHeader("Content-Type", image.mimeType);
+      res.setHeader("Content-Length", String(image.bytes.length));
+      res.setHeader("Cache-Control", "private, max-age=300");
+      res.setHeader("Content-Disposition", "inline");
+      res.setHeader("X-Content-Type-Options", "nosniff");
+      res.end(image.bytes);
+      return;
+    }
     if (url.pathname === "/api/documents/upload" && req.method === "POST") {
       const { document } = await uploadDocumentToDocs(req, user.id);
       await recordTeamActivity(backend.client, user.id, "document.uploaded", "document", document.id, { name: document.name });
@@ -145,6 +175,10 @@ export async function handleGoogleDriveApi(req: IncomingMessage, res: ServerResp
     console.error("[GOOGLE DRIVE API]", message);
     const status = message === "GOOGLE_DRIVE_OAUTH_REQUIRED" ? 409
       : message === "GOOGLE_DRIVE_NOT_CONFIGURED" ? 503
+      : message === "DRIVE_PREVIEW_NOT_FOUND" ? 404
+      : message === "DRIVE_PREVIEW_FORBIDDEN" ? 403
+      : message === "DRIVE_PREVIEW_TOO_LARGE" ? 413
+      : message === "DRIVE_PREVIEW_INVALID_ID" || message === "DRIVE_PREVIEW_UNSUPPORTED" ? 400
       : message === "DRIVE_UPLOAD_TOO_LARGE" || message.includes("50 MB") ? 413
         : message.includes("obrigatório") || message.includes("vazio") || message.includes("inválido") ? 400
           : 500;

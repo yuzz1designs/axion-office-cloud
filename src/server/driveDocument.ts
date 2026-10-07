@@ -34,6 +34,25 @@ export function validateDriveUpload({ fileName, byteLength }: { fileName: string
   if (byteLength > MAX_DRIVE_UPLOAD_BYTES) throw new Error("O ficheiro excede o limite de 50 MB.");
 }
 
+export function validateDriveImagePreview({
+  fileId,
+  mimeType,
+  size,
+  parents,
+  folderId,
+}: {
+  fileId: string;
+  mimeType?: string;
+  size?: string;
+  parents?: string[];
+  folderId: string;
+}) {
+  if (!/^[a-zA-Z0-9_-]+$/.test(fileId)) throw new Error("DRIVE_PREVIEW_INVALID_ID");
+  if (!parents?.includes(folderId)) throw new Error("DRIVE_PREVIEW_FORBIDDEN");
+  if (!mimeType?.startsWith("image/")) throw new Error("DRIVE_PREVIEW_UNSUPPORTED");
+  if (Number(size || 0) > MAX_DRIVE_UPLOAD_BYTES) throw new Error("DRIVE_PREVIEW_TOO_LARGE");
+}
+
 export function decodeUploadFileName(value: string | undefined): string {
   if (!value) throw new Error("O nome do ficheiro é obrigatório.");
   try {

@@ -1,6 +1,6 @@
 import React, { useCallback, useEffect, useMemo, useState } from "react";
 import { AnimatePresence, motion } from "motion/react";
-import { ArrowLeft, ExternalLink, FileArchive, FileCode, FileImage, FileSpreadsheet, FileText, Folder, FolderArchive, HardDrive, RefreshCw, Search, ShieldCheck, UploadCloud, X } from "lucide-react";
+import { ArrowLeft, Eye, ExternalLink, FileArchive, FileCode, FileImage, FileSpreadsheet, FileText, Folder, FolderArchive, HardDrive, RefreshCw, Search, ShieldCheck, UploadCloud, X } from "lucide-react";
 import type { AccentColorOption } from "../../types/settings";
 import type { DriveDocument } from "../../server/driveDocument";
 import { getDriveUploadAction, type DriveOAuthStatus } from "./driveUploadState";
@@ -61,6 +61,8 @@ export default function DocumentRepositoryScreen({
   const [query, setQuery] = useState("");
   const [category, setCategory] = useState("Todos");
   const [preview, setPreview] = useState<DriveDocument | null>(null);
+  const [previewImageLoading, setPreviewImageLoading] = useState(false);
+  const [previewImageError, setPreviewImageError] = useState(false);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState("");
   const [lastSync, setLastSync] = useState("");
@@ -125,7 +127,11 @@ export default function DocumentRepositoryScreen({
     const requested = requestedDocument.trim().toLocaleLowerCase("pt");
     if (!requested || !documents.length) return;
     const match = documents.find((document) => document.name.toLocaleLowerCase("pt").includes(requested));
-    if (match) setPreview(match);
+    if (match) {
+      setPreviewImageError(false);
+      setPreviewImageLoading(match.mimeType.startsWith("image/"));
+      setPreview(match);
+    }
     else setQuery(requestedDocument);
     onRequestedDocumentHandled?.();
   }, [documents, onRequestedDocumentHandled, requestedDocument]);
@@ -134,6 +140,11 @@ export default function DocumentRepositoryScreen({
   const openDrive = (document?: DriveDocument) => {
     const url = document?.webViewLink || folderUrl;
     if (url) window.open(url, "_blank", "noopener,noreferrer");
+  };
+  const openPreview = (document: DriveDocument) => {
+    setPreviewImageError(false);
+    setPreviewImageLoading(document.mimeType.startsWith("image/"));
+    setPreview(document);
   };
   const uploadAction = getDriveUploadAction(oauthStatus);
   const connectGoogleDrive = () => { window.location.assign("/api/google/oauth/start"); };
@@ -229,14 +240,18 @@ export default function DocumentRepositoryScreen({
           : filtered.map((document) => {
             const Icon = getIcon(document); const color = getColor(document);
             return <div key={document.id} className="py-4 px-2 flex flex-col sm:flex-row sm:items-center justify-between gap-4 hover:bg-white/[0.02] rounded-xl group">
-              <button type="button" onClick={() => setPreview(document)} className="flex items-start gap-4 flex-1 text-left min-w-0"><span className="w-10 h-10 rounded-xl bg-white/5 border flex items-center justify-center shrink-0" style={{ borderColor: `${color}40` }}><Icon size={18} style={{ color }} /></span><span className="flex flex-col gap-1 min-w-0"><span className="flex items-center gap-2.5 flex-wrap"><span className="text-xs font-semibold text-white group-hover:text-[var(--axion-accent)] truncate">{document.name}</span><span className="text-[10px] font-mono text-white/50 bg-white/5 px-2 rounded">{document.extension}</span></span><span className="text-[11px] text-white/50 line-clamp-1">{document.description || (document.isFolder ? "Pasta do Google Drive" : "Ficheiro armazenado em AXION / DOCS")}</span><span className="flex items-center gap-3 text-[10px] font-mono text-white/40 flex-wrap"><span>{getCategory(document)}</span><span>•</span><span>{document.sizeLabel}</span><span>•</span><span>{document.owner}</span><span>•</span><span>{formatDate(document.modifiedTime)}</span></span></span></button>
-              <button type="button" onClick={() => openDrive(document)} className="px-3 py-1.5 rounded-lg bg-white/[0.04] hover:bg-white/10 text-white/70 hover:text-white text-xs flex items-center gap-1.5 self-end sm:self-center"><ExternalLink size={13} />Abrir no Drive</button>
+              <button type="button" onClick={() => openPreview(document)} className="flex items-start gap-4 flex-1 text-left min-w-0"><span className="w-10 h-10 rounded-xl bg-white/5 border flex items-center justify-center shrink-0" style={{ borderColor: `${color}40` }}><Icon size={18} style={{ color }} /></span><span className="flex flex-col gap-1 min-w-0"><span className="flex items-center gap-2.5 flex-wrap"><span className="text-xs font-semibold text-white group-hover:text-[var(--axion-accent)] truncate">{document.name}</span><span className="text-[10px] font-mono text-white/50 bg-white/5 px-2 rounded">{document.extension}</span></span><span className="text-[11px] text-white/50 line-clamp-1">{document.description || (document.isFolder ? "Pasta do Google Drive" : "Ficheiro armazenado em AXION / DOCS")}</span><span className="flex items-center gap-3 text-[10px] font-mono text-white/40 flex-wrap"><span>{getCategory(document)}</span><span>•</span><span>{document.sizeLabel}</span><span>•</span><span>{document.owner}</span><span>•</span><span>{formatDate(document.modifiedTime)}</span></span></span></button>
+              <div className="flex items-center gap-2 self-end sm:self-center">{document.mimeType.startsWith("image/") && <button type="button" onClick={() => openPreview(document)} className="px-3 py-1.5 rounded-lg border border-white/[.08] bg-white/[0.03] hover:bg-white/[.08] text-white/70 hover:text-white text-xs flex items-center gap-1.5"><Eye size={13} />Pré-visualizar</button>}<button type="button" onClick={() => openDrive(document)} className="px-3 py-1.5 rounded-lg bg-white/[0.04] hover:bg-white/10 text-white/70 hover:text-white text-xs flex items-center gap-1.5"><ExternalLink size={13} />Abrir no Drive</button></div>
             </div>;
           })}
       </div>
 
-      <AnimatePresence>{preview && <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/75 backdrop-blur-md"><motion.div initial={{ opacity: 0, scale: 0.95 }} animate={{ opacity: 1, scale: 1 }} exit={{ opacity: 0, scale: 0.95 }} className="w-full max-w-lg bg-[#0c1017] border border-white/15 rounded-3xl p-6 shadow-2xl flex flex-col gap-5">
+      <AnimatePresence>{preview && <div onMouseDown={(event) => event.target === event.currentTarget && setPreview(null)} className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/75 backdrop-blur-md"><motion.div initial={{ opacity: 0, scale: 0.95 }} animate={{ opacity: 1, scale: 1 }} exit={{ opacity: 0, scale: 0.95 }} className={`w-full ${preview.mimeType.startsWith("image/") ? "max-w-5xl" : "max-w-lg"} max-h-[92vh] overflow-y-auto bg-[#0c1017] border border-white/15 rounded-3xl p-6 shadow-2xl flex flex-col gap-5`}>
         <div className="flex items-start justify-between border-b border-white/10 pb-4"><div className="flex items-center gap-3 min-w-0">{React.createElement(getIcon(preview), { size: 22, style: { color: getColor(preview) } })}<div className="min-w-0"><h3 className="text-sm font-bold text-white truncate">{preview.name}</h3><span className="text-[11px] font-mono text-white/50">{preview.extension} • {preview.sizeLabel}</span></div></div><button type="button" onClick={() => setPreview(null)} className="p-1 text-white/40 hover:text-white"><X size={16} /></button></div>
+        {preview.mimeType.startsWith("image/") && <div className="relative grid min-h-64 max-h-[62vh] place-items-center overflow-hidden rounded-2xl border border-white/10 bg-black/30">
+          {previewImageLoading && <RefreshCw size={26} className="absolute animate-spin text-white/35" aria-label="A carregar pré-visualização" />}
+          {previewImageError ? <div className="max-w-sm px-6 py-12 text-center"><p className="text-sm font-semibold text-white/80">Não foi possível mostrar esta imagem.</p><p className="mt-2 text-xs text-white/45">Pode continuar a abri-la diretamente no Google Drive.</p></div> : <img src={`/api/documents/${encodeURIComponent(preview.id)}/content`} alt={preview.name} onLoad={() => setPreviewImageLoading(false)} onError={() => { setPreviewImageLoading(false); setPreviewImageError(true); }} className={`max-h-[60vh] max-w-full object-contain transition-opacity duration-300 ${previewImageLoading ? "opacity-0" : "opacity-100"}`} />}
+        </div>}
         <div className="grid grid-cols-2 gap-3 text-xs"><div className="col-span-2 p-3.5 rounded-xl bg-white/[0.03] border border-white/5"><div className="text-[10px] font-mono text-white/40 uppercase mb-1">Descrição</div><p className="text-white/80">{preview.description || "Sem descrição no Google Drive."}</p></div><div className="p-3 rounded-xl bg-white/[0.03] border border-white/5"><div className="text-[10px] font-mono text-white/40 uppercase mb-1">Proprietário</div><div className="text-white">{preview.owner}</div></div><div className="p-3 rounded-xl bg-white/[0.03] border border-white/5"><div className="text-[10px] font-mono text-white/40 uppercase mb-1">Modificado</div><div className="text-white">{formatDate(preview.modifiedTime)}</div></div></div>
         <div className="flex justify-end pt-3 border-t border-white/10"><button type="button" onClick={() => openDrive(preview)} style={{ backgroundColor: accentColor.hex, color: "#050609" }} className="px-4 py-2 rounded-xl font-bold text-xs flex items-center gap-2 hover:brightness-110"><ExternalLink size={14} />Abrir no Google Drive</button></div>
       </motion.div></div>}</AnimatePresence>

@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import { decodeUploadFileName, formatFileSize, mapDriveFile, validateDriveUpload, type DriveFile } from "./driveDocument";
+import { decodeUploadFileName, formatFileSize, mapDriveFile, validateDriveImagePreview, validateDriveUpload, type DriveFile } from "./driveDocument";
 
 test("normaliza um PDF do Drive para o contrato do depósito", () => {
   const file: DriveFile = {
@@ -64,4 +64,13 @@ test("rejeita ficheiros vazios ou superiores a 50 MB", () => {
 test("descodifica nomes Unicode enviados de forma segura no cabeçalho", () => {
   assert.equal(decodeUploadFileName(encodeURIComponent("Proposta João — versão 2.pdf")), "Proposta João — versão 2.pdf");
   assert.throws(() => decodeUploadFileName(""), /nome/i);
+});
+
+test("só permite previews de imagens dentro da pasta AXION", () => {
+  const valid = { fileId: "drive_image-123", folderId: "axion-docs", parents: ["axion-docs"], mimeType: "image/png", size: "2048" };
+  assert.doesNotThrow(() => validateDriveImagePreview(valid));
+  assert.throws(() => validateDriveImagePreview({ ...valid, fileId: "../secret" }), /INVALID_ID/);
+  assert.throws(() => validateDriveImagePreview({ ...valid, parents: ["another-folder"] }), /FORBIDDEN/);
+  assert.throws(() => validateDriveImagePreview({ ...valid, mimeType: "application/pdf" }), /UNSUPPORTED/);
+  assert.throws(() => validateDriveImagePreview({ ...valid, size: String(50 * 1024 * 1024 + 1) }), /TOO_LARGE/);
 });
