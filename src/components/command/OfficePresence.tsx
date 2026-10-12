@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useState, type ReactNode } from "react";
 import { AnimatePresence, motion } from "motion/react";
-import { Clock3, FileImage, FileText, Film, ImagePlus, Plus, Send, Trash2, X } from "lucide-react";
+import { Clock3, Eye, FileImage, FileText, Film, ImagePlus, Plus, Send, Trash2, X } from "lucide-react";
 import { isOfficeMemberOnline, officeSessionTime, type OfficePresenceSnapshot } from "../../lib/officePresence";
 
 interface TeamUpdateItem {
@@ -12,6 +12,8 @@ interface TeamUpdateItem {
   publishedOn: string;
   createdAt: string;
   media: TeamUpdateMedia[];
+  viewers: TeamUpdateViewer[];
+  pendingViewerNames: string[];
 }
 
 interface TeamUpdateMedia {
@@ -21,6 +23,12 @@ interface TeamUpdateMedia {
   sizeBytes: number;
   kind: "image" | "video";
   url: string;
+}
+
+interface TeamUpdateViewer {
+  userId: string;
+  name: string;
+  viewedAt: string;
 }
 
 export function useOfficePresence(userId?: string) {
@@ -118,7 +126,7 @@ export default function OfficePresence({ presence, currentUserId, now, accent }:
 
   useEffect(() => {
     void loadUpdates();
-    const refresh = (event: Event) => { if ((event as CustomEvent).detail?.table === "team_updates") void loadUpdates(); };
+    const refresh = (event: Event) => { if (["team_updates", "team_update_reads"].includes((event as CustomEvent).detail?.table)) void loadUpdates(); };
     window.addEventListener("axion:realtime", refresh);
     return () => window.removeEventListener("axion:realtime", refresh);
   }, [loadUpdates]);
@@ -146,6 +154,7 @@ export default function OfficePresence({ presence, currentUserId, now, accent }:
       setDescription("");
       setMediaFiles([]);
       setComposerOpen(false);
+      await loadUpdates();
       if (failed.length) setUpdatesError(`Update publicado, mas não foi possível anexar: ${failed.join(", ")}.`);
     } catch (error) {
       setUpdatesError(error instanceof Error ? error.message : "Não foi possível publicar o update.");
@@ -164,6 +173,24 @@ export default function OfficePresence({ presence, currentUserId, now, accent }:
     if (combined.length > 4) return setUpdatesError("Cada update pode ter no máximo quatro anexos.");
     setMediaFiles(combined);
     setUpdatesError("");
+  };
+
+  const openUpdate = async (update: TeamUpdateItem) => {
+    setHistoryOpen(false);
+    setSelected(update);
+    if (!currentUserId || update.authorUserId === currentUserId || update.viewers?.some((viewer) => viewer.userId === currentUserId)) return;
+    try {
+      const response = await fetch(`/api/team/updates/${encodeURIComponent(update.id)}/read`, { method: "POST" });
+      const value = await response.json().catch(() => ({}));
+      if (!response.ok) throw new Error(value.error || "Não foi possível registar a visualização.");
+      const viewer = value.viewer as TeamUpdateViewer | null;
+      if (!viewer) return;
+      const applyViewer = (item: TeamUpdateItem) => item.id !== update.id ? item : { ...item, viewers: [...(item.viewers || []).filter((entry) => entry.userId !== viewer.userId), viewer], pendingViewerNames: (item.pendingViewerNames || []).filter((name) => name !== viewer.name) };
+      setUpdates((current) => current.map(applyViewer));
+      setSelected((current) => current ? applyViewer(current) : current);
+    } catch (error) {
+      setUpdatesError(error instanceof Error ? error.message : "Não foi possível registar a visualização.");
+    }
   };
 
   return (
@@ -207,10 +234,10 @@ export default function OfficePresence({ presence, currentUserId, now, accent }:
         </UpdateModal>}
         {historyOpen && <UpdateModal onClose={() => setHistoryOpen(false)} wide>
           <div className="mb-5"><p className="font-mono text-[9px] uppercase tracking-[.24em]" style={{ color: accent }}>Equipa AXION</p><h2 className="mt-2 text-2xl font-semibold">Últimos updates</h2><p className="mt-1 text-xs text-white/35">Progresso publicado por Nelson, Sousa e João.</p></div>
-          <div className="max-h-[58vh] space-y-2 overflow-auto pr-1">{updates.length === 0 ? <p className="rounded-xl border border-dashed border-white/10 p-8 text-center text-xs text-white/30">Ainda não existem updates publicados.</p> : updates.map((update) => <button key={update.id} onClick={() => { setHistoryOpen(false); setSelected(update); }} className="flex w-full items-start gap-3 rounded-2xl border border-white/[.07] bg-white/[.025] p-4 text-left transition hover:border-white/[.14] hover:bg-white/[.045]"><span className="grid h-9 w-9 shrink-0 place-items-center rounded-xl border border-white/[.07] bg-white/[.035]" style={{ color: accent }}><FileText size={15} /></span><span className="min-w-0 flex-1"><span className="flex flex-wrap items-center justify-between gap-2"><strong className="truncate text-sm font-medium text-white/80">{update.title}</strong><span className="text-[9px] text-white/25">{updateDate(update.createdAt)}</span></span><span className="mt-1 block text-[10px] font-semibold uppercase tracking-wider" style={{ color: accent }}>{update.authorName}</span><span className="mt-2 line-clamp-2 block text-xs leading-5 text-white/35">{update.description}</span>{update.media?.[0]?.url && <span className="relative mt-3 block h-28 overflow-hidden rounded-xl border border-white/[.07] bg-black/25">{update.media[0].kind === "video" ? <video src={update.media[0].url} autoPlay loop muted playsInline preload="metadata" className="h-full w-full object-cover" /> : <img src={update.media[0].url} alt={update.media[0].name} loading="lazy" className="h-full w-full object-cover" />}{update.media.length > 1 && <span className="absolute bottom-2 right-2 rounded-lg bg-black/70 px-2 py-1 text-[9px] text-white/75">+{update.media.length - 1}</span>}</span>}</span></button>)}</div>
+          <div className="max-h-[58vh] space-y-2 overflow-auto pr-1">{updates.length === 0 ? <p className="rounded-xl border border-dashed border-white/10 p-8 text-center text-xs text-white/30">Ainda não existem updates publicados.</p> : updates.map((update) => <button key={update.id} onClick={() => void openUpdate(update)} className="flex w-full items-start gap-3 rounded-2xl border border-white/[.07] bg-white/[.025] p-4 text-left transition hover:border-white/[.14] hover:bg-white/[.045]"><span className="grid h-9 w-9 shrink-0 place-items-center rounded-xl border border-white/[.07] bg-white/[.035]" style={{ color: accent }}><FileText size={15} /></span><span className="min-w-0 flex-1"><span className="flex flex-wrap items-center justify-between gap-2"><strong className="truncate text-sm font-medium text-white/80">{update.title}</strong><span className="text-[9px] text-white/25">{updateDate(update.createdAt)}</span></span><span className="mt-1 block text-[10px] font-semibold uppercase tracking-wider" style={{ color: accent }}>{update.authorName}</span><span className="mt-2 line-clamp-2 block text-xs leading-5 text-white/35">{update.description}</span>{update.media?.[0]?.url && <span className="relative mt-3 block h-28 overflow-hidden rounded-xl border border-white/[.07] bg-black/25">{update.media[0].kind === "video" ? <video src={update.media[0].url} autoPlay loop muted playsInline preload="metadata" className="h-full w-full object-cover" /> : <img src={update.media[0].url} alt={update.media[0].name} loading="lazy" className="h-full w-full object-cover" />}{update.media.length > 1 && <span className="absolute bottom-2 right-2 rounded-lg bg-black/70 px-2 py-1 text-[9px] text-white/75">+{update.media.length - 1}</span>}</span>}<span className="mt-3 flex items-center gap-1.5 text-[9px] text-white/30"><Eye size={11} />{(update.viewers || []).length} de {(update.viewers || []).length + (update.pendingViewerNames || []).length} visualizaram</span></span></button>)}</div>
         </UpdateModal>}
         {selected && <UpdateModal onClose={() => setSelected(null)}>
-          <div className="flex items-start gap-4"><span className="grid h-11 w-11 shrink-0 place-items-center rounded-2xl border border-white/[.08] bg-white/[.035]" style={{ color: accent }}><FileText size={18} /></span><div><p className="text-[9px] font-semibold uppercase tracking-[.18em]" style={{ color: accent }}>{selected.authorName}</p><h2 className="mt-2 text-2xl font-semibold">{selected.title}</h2><p className="mt-1 flex items-center gap-1.5 text-[10px] text-white/25"><Clock3 size={11} />{updateDate(selected.createdAt)}</p></div></div><div className="mt-6 whitespace-pre-wrap rounded-2xl border border-white/[.07] bg-black/15 p-5 text-sm leading-7 text-white/60">{selected.description}</div>{selected.media?.length > 0 && <div className={`mt-4 grid gap-3 ${selected.media.length > 1 ? "sm:grid-cols-2" : "grid-cols-1"}`}>{selected.media.map((media) => <figure key={media.id} className="overflow-hidden rounded-2xl border border-white/[.08] bg-black/30">{media.kind === "video" ? <video src={media.url} aria-label={media.name} autoPlay loop muted playsInline controls preload="metadata" className="max-h-[55vh] w-full object-contain" /> : <img src={media.url} alt={media.name} className="max-h-[55vh] w-full object-contain" />}<figcaption className="truncate border-t border-white/[.06] px-3 py-2 text-[9px] text-white/30">{media.name}</figcaption></figure>)}</div>}
+          <div className="flex items-start gap-4"><span className="grid h-11 w-11 shrink-0 place-items-center rounded-2xl border border-white/[.08] bg-white/[.035]" style={{ color: accent }}><FileText size={18} /></span><div><p className="text-[9px] font-semibold uppercase tracking-[.18em]" style={{ color: accent }}>{selected.authorName}</p><h2 className="mt-2 text-2xl font-semibold">{selected.title}</h2><p className="mt-1 flex items-center gap-1.5 text-[10px] text-white/25"><Clock3 size={11} />{updateDate(selected.createdAt)}</p></div></div><div className="mt-6 whitespace-pre-wrap rounded-2xl border border-white/[.07] bg-black/15 p-5 text-sm leading-7 text-white/60">{selected.description}</div>{selected.media?.length > 0 && <div className={`mt-4 grid gap-3 ${selected.media.length > 1 ? "sm:grid-cols-2" : "grid-cols-1"}`}>{selected.media.map((media) => <figure key={media.id} className="overflow-hidden rounded-2xl border border-white/[.08] bg-black/30">{media.kind === "video" ? <video src={media.url} aria-label={media.name} autoPlay loop muted playsInline controls preload="metadata" className="max-h-[55vh] w-full object-contain" /> : <img src={media.url} alt={media.name} className="max-h-[55vh] w-full object-contain" />}<figcaption className="truncate border-t border-white/[.06] px-3 py-2 text-[9px] text-white/30">{media.name}</figcaption></figure>)}</div>}<div className="mt-4 rounded-2xl border border-white/[.07] bg-white/[.025] p-4"><p className="flex items-center gap-2 text-[10px] font-semibold uppercase tracking-wider text-white/50"><Eye size={13} style={{ color: accent }} />Visualizações</p><div className="mt-3 flex flex-wrap gap-2">{selected.viewers?.length ? selected.viewers.map((viewer) => <span key={viewer.userId} title={`Visto em ${updateDate(viewer.viewedAt)}`} className="rounded-lg border border-emerald-400/20 bg-emerald-400/10 px-2.5 py-1.5 text-[10px] text-emerald-200">{viewer.name} · visto</span>) : <span className="text-[10px] text-white/30">Ainda ninguém visualizou.</span>}</div>{selected.pendingViewerNames?.length > 0 && <p className="mt-3 text-[10px] text-white/30">Por visualizar: {selected.pendingViewerNames.join(", ")}</p>}</div>
         </UpdateModal>}
       </AnimatePresence>
     </>

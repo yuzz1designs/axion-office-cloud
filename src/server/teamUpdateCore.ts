@@ -18,6 +18,11 @@ export function validateTeamUpdateMedia(contentType: string, byteLength: number)
   return normalizedType;
 }
 
+export function pendingTeamUpdateViewerIds(authorUserId: string, memberIds: string[], viewedUserIds: string[]) {
+  const viewed = new Set(viewedUserIds);
+  return memberIds.filter((memberId) => memberId !== authorUserId && !viewed.has(memberId));
+}
+
 export function normalizeTeamUpdateInput(raw: Record<string, unknown>): TeamUpdateInput {
   const title = String(raw.title || "").replace(/\s+/g, " ").trim();
   const description = String(raw.description || "").trim();

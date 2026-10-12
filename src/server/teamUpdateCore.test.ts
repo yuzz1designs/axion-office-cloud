@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import { MAX_TEAM_UPDATE_MEDIA_BYTES, normalizeTeamUpdateInput, validateTeamUpdateMedia } from "./teamUpdateCore";
+import { MAX_TEAM_UPDATE_MEDIA_BYTES, normalizeTeamUpdateInput, pendingTeamUpdateViewerIds, validateTeamUpdateMedia } from "./teamUpdateCore";
 
 test("normaliza um update diário com título e descrição", () => {
   assert.deepEqual(normalizeTeamUpdateInput({ title: "  Site   publicado ", description: "Concluí a nova homepage." }), {
@@ -24,4 +24,9 @@ test("rejeita anexos vazios, demasiado grandes ou incompatíveis", () => {
   assert.throws(() => validateTeamUpdateMedia("application/pdf", 1024), /TYPE_INVALID/);
   assert.throws(() => validateTeamUpdateMedia("image/png", 0), /EMPTY/);
   assert.throws(() => validateTeamUpdateMedia("video/mp4", MAX_TEAM_UPDATE_MEDIA_BYTES + 1), /TOO_LARGE/);
+});
+
+test("calcula quem ainda não abriu o update sem contar o autor", () => {
+  assert.deepEqual(pendingTeamUpdateViewerIds("nelson", ["nelson", "sousa", "joao"], ["sousa"]), ["joao"]);
+  assert.deepEqual(pendingTeamUpdateViewerIds("nelson", ["nelson", "sousa", "joao"], ["sousa", "joao"]), []);
 });

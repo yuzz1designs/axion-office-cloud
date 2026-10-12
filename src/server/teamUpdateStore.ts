@@ -1,6 +1,6 @@
 import { randomUUID } from "node:crypto";
 import type { SupabaseClient } from "@supabase/supabase-js";
-import { MAX_TEAM_UPDATE_MEDIA_FILES, normalizeTeamUpdateInput, validateTeamUpdateMedia } from "./teamUpdateCore";
+import { MAX_TEAM_UPDATE_MEDIA_FILES, normalizeTeamUpdateInput, pendingTeamUpdateViewerIds, validateTeamUpdateMedia } from "./teamUpdateCore";
 
 export interface TeamUpdateMedia {
   id: string;
@@ -9,6 +9,12 @@ export interface TeamUpdateMedia {
   sizeBytes: number;
   kind: "image" | "video";
   url: string;
+}
+
+export interface TeamUpdateViewer {
+  userId: string;
+  name: string;
+  viewedAt: string;
 }
 
 export interface TeamUpdateItem {
@@ -20,6 +26,8 @@ export interface TeamUpdateItem {
   publishedOn: string;
   createdAt: string;
   media: TeamUpdateMedia[];
+  viewers: TeamUpdateViewer[];
+  pendingViewerNames: string[];
 }
 
 async function workspaceId(client: SupabaseClient, userId: string) {
@@ -34,23 +42,31 @@ function lisbonDate() {
 
 export async function listTeamUpdates(client: SupabaseClient, userId: string, limit = 30): Promise<TeamUpdateItem[]> {
   const targetWorkspaceId = await workspaceId(client, userId);
-  const [{ data: updates, error }, { data: profiles, error: profileError }] = await Promise.all([
+  const [{ data: updates, error }, { data: profiles, error: profileError }, { data: memberships, error: membershipError }] = await Promise.all([
     client.from("team_updates").select("id,author_user_id,title,description,published_on,created_at").eq("workspace_id", targetWorkspaceId).order("created_at", { ascending: false }).limit(Math.min(Math.max(limit, 1), 50)),
     client.from("profiles").select("user_id,preferred_name,display_name,email").eq("workspace_id", targetWorkspaceId),
+    client.from("workspace_members").select("user_id").eq("workspace_id", targetWorkspaceId).eq("status", "active"),
   ]);
-  if (error || profileError) throw new Error(`TEAM_UPDATE_READ_FAILED:${(error || profileError)?.message}`);
+  if (error || profileError || membershipError) throw new Error(`TEAM_UPDATE_READ_FAILED:${(error || profileError || membershipError)?.message}`);
   const names = new Map((profiles || []).map((profile) => [profile.user_id, profile.preferred_name || profile.display_name || profile.email]));
+  const memberIds = (memberships || []).map((membership) => membership.user_id as string);
   const updateIds = (updates || []).map((update) => update.id);
-  const { data: mediaRows, error: mediaError } = updateIds.length
-    ? await client.from("file_assets").select("id,entity_id,container,object_id,file_name,mime_type,size_bytes").eq("workspace_id", targetWorkspaceId).eq("entity_type", "team_update").in("entity_id", updateIds).order("created_at")
-    : { data: [], error: null };
-  if (mediaError) throw new Error(`TEAM_UPDATE_MEDIA_READ_FAILED:${mediaError.message}`);
+  const [{ data: mediaRows, error: mediaError }, { data: readRows, error: readsError }] = updateIds.length ? await Promise.all([
+    client.from("file_assets").select("id,entity_id,container,object_id,file_name,mime_type,size_bytes").eq("workspace_id", targetWorkspaceId).eq("entity_type", "team_update").in("entity_id", updateIds).order("created_at"),
+    client.from("team_update_reads").select("update_id,user_id,viewed_at").eq("workspace_id", targetWorkspaceId).in("update_id", updateIds).order("viewed_at"),
+  ]) : [{ data: [], error: null }, { data: [], error: null }];
+  if (mediaError || readsError) throw new Error(`TEAM_UPDATE_DETAILS_READ_FAILED:${(mediaError || readsError)?.message}`);
   const mediaByUpdate = new Map<string, TeamUpdateMedia[]>();
+  const viewersByUpdate = new Map<string, TeamUpdateViewer[]>();
   await Promise.all((mediaRows || []).map(async (row) => {
     const { data } = await client.storage.from(row.container).createSignedUrl(row.object_id, 21_600);
     const media: TeamUpdateMedia = { id: row.id, name: row.file_name, mimeType: row.mime_type, sizeBytes: Number(row.size_bytes || 0), kind: row.mime_type.startsWith("video/") ? "video" : "image", url: data?.signedUrl || "" };
     mediaByUpdate.set(row.entity_id, [...(mediaByUpdate.get(row.entity_id) || []), media]);
   }));
+  for (const row of readRows || []) {
+    const viewer = { userId: row.user_id, name: names.get(row.user_id) || "Membro AXION", viewedAt: row.viewed_at };
+    viewersByUpdate.set(row.update_id, [...(viewersByUpdate.get(row.update_id) || []), viewer]);
+  }
   return (updates || []).map((update) => ({
     id: update.id,
     authorUserId: update.author_user_id,
@@ -60,6 +76,8 @@ export async function listTeamUpdates(client: SupabaseClient, userId: string, li
     publishedOn: update.published_on,
     createdAt: update.created_at,
     media: mediaByUpdate.get(update.id) || [],
+    viewers: viewersByUpdate.get(update.id) || [],
+    pendingViewerNames: pendingTeamUpdateViewerIds(update.author_user_id, memberIds, (viewersByUpdate.get(update.id) || []).map((viewer) => viewer.userId)).map((memberId) => names.get(memberId) || "Membro AXION"),
   }));
 }
 
@@ -75,7 +93,22 @@ export async function createTeamUpdate(client: SupabaseClient, userId: string, r
   }).select("id,author_user_id,title,description,published_on,created_at").single();
   if (error || !data) throw new Error(`TEAM_UPDATE_WRITE_FAILED:${error?.message}`);
   const { data: profile } = await client.from("profiles").select("preferred_name,display_name,email").eq("user_id", userId).single();
-  return { id: data.id, authorUserId: data.author_user_id, authorName: profile?.preferred_name || profile?.display_name || profile?.email || "Membro AXION", title: data.title, description: data.description, publishedOn: data.published_on, createdAt: data.created_at, media: [] };
+  return { id: data.id, authorUserId: data.author_user_id, authorName: profile?.preferred_name || profile?.display_name || profile?.email || "Membro AXION", title: data.title, description: data.description, publishedOn: data.published_on, createdAt: data.created_at, media: [], viewers: [], pendingViewerNames: [] };
+}
+
+export async function markTeamUpdateViewed(client: SupabaseClient, userId: string, updateId: string): Promise<TeamUpdateViewer | null> {
+  const targetWorkspaceId = await workspaceId(client, userId);
+  const { data: update, error: updateError } = await client.from("team_updates").select("author_user_id").eq("id", updateId).eq("workspace_id", targetWorkspaceId).single();
+  if (updateError || !update) throw new Error("TEAM_UPDATE_NOT_FOUND");
+  if (update.author_user_id === userId) return null;
+  const { error } = await client.from("team_update_reads").upsert({ update_id: updateId, workspace_id: targetWorkspaceId, user_id: userId }, { onConflict: "update_id,user_id", ignoreDuplicates: true });
+  if (error) throw new Error(`TEAM_UPDATE_VIEW_WRITE_FAILED:${error.message}`);
+  const [{ data: receipt, error: receiptError }, { data: profile }] = await Promise.all([
+    client.from("team_update_reads").select("viewed_at").eq("update_id", updateId).eq("user_id", userId).single(),
+    client.from("profiles").select("preferred_name,display_name,email").eq("user_id", userId).single(),
+  ]);
+  if (receiptError || !receipt) throw new Error(`TEAM_UPDATE_VIEW_READ_FAILED:${receiptError?.message}`);
+  return { userId, name: profile?.preferred_name || profile?.display_name || profile?.email || "Membro AXION", viewedAt: receipt.viewed_at };
 }
 
 export async function attachTeamUpdateMedia(client: SupabaseClient, userId: string, updateId: string, file: { name: string; type: string; bytes: Buffer }): Promise<TeamUpdateMedia> {
