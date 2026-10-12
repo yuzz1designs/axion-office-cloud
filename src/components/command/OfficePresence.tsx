@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useState, type ReactNode } from "react";
 import { AnimatePresence, motion } from "motion/react";
-import { Clock3, FileText, Plus, Send, X } from "lucide-react";
+import { Clock3, FileImage, FileText, Film, ImagePlus, Plus, Send, Trash2, X } from "lucide-react";
 import { isOfficeMemberOnline, officeSessionTime, type OfficePresenceSnapshot } from "../../lib/officePresence";
 
 interface TeamUpdateItem {
@@ -11,6 +11,16 @@ interface TeamUpdateItem {
   description: string;
   publishedOn: string;
   createdAt: string;
+  media: TeamUpdateMedia[];
+}
+
+interface TeamUpdateMedia {
+  id: string;
+  name: string;
+  mimeType: string;
+  sizeBytes: number;
+  kind: "image" | "video";
+  url: string;
 }
 
 export function useOfficePresence(userId?: string) {
@@ -91,6 +101,7 @@ export default function OfficePresence({ presence, currentUserId, now, accent }:
   const [selected, setSelected] = useState<TeamUpdateItem | null>(null);
   const [title, setTitle] = useState("");
   const [description, setDescription] = useState("");
+  const [mediaFiles, setMediaFiles] = useState<File[]>([]);
   const [publishing, setPublishing] = useState(false);
 
   const loadUpdates = useCallback(async () => {
@@ -119,13 +130,40 @@ export default function OfficePresence({ presence, currentUserId, now, accent }:
       const response = await fetch("/api/team/updates", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ title, description }) });
       const value = await response.json().catch(() => ({}));
       if (!response.ok) throw new Error(value.error || "Não foi possível publicar o update.");
-      setUpdates((current) => [value.update, ...current.filter((item) => item.id !== value.update.id)]);
+      const media: TeamUpdateMedia[] = [];
+      const failed: string[] = [];
+      for (const file of mediaFiles) {
+        try {
+          const mediaResponse = await fetch(`/api/team/updates/${encodeURIComponent(value.update.id)}/media`, { method: "POST", headers: { "Content-Type": file.type, "X-File-Name": encodeURIComponent(file.name) }, body: file });
+          const mediaValue = await mediaResponse.json().catch(() => ({}));
+          if (!mediaResponse.ok) throw new Error(mediaValue.error || "Não foi possível enviar o anexo.");
+          media.push(mediaValue.media);
+        } catch { failed.push(file.name); }
+      }
+      const published = { ...value.update, media };
+      setUpdates((current) => [published, ...current.filter((item) => item.id !== published.id)]);
       setTitle("");
       setDescription("");
+      setMediaFiles([]);
       setComposerOpen(false);
+      if (failed.length) setUpdatesError(`Update publicado, mas não foi possível anexar: ${failed.join(", ")}.`);
     } catch (error) {
       setUpdatesError(error instanceof Error ? error.message : "Não foi possível publicar o update.");
     } finally { setPublishing(false); }
+  };
+
+  const selectMedia = (files: FileList | null) => {
+    if (!files?.length) return;
+    const accepted = new Set(["image/jpeg", "image/png", "image/gif", "image/webp", "image/avif", "video/mp4", "video/webm", "video/quicktime"]);
+    const incoming = Array.from(files);
+    const invalid = incoming.find((file) => !accepted.has(file.type));
+    const tooLarge = incoming.find((file) => file.size > 50 * 1024 * 1024);
+    if (invalid) return setUpdatesError(`${invalid.name}: formato não suportado.`);
+    if (tooLarge) return setUpdatesError(`${tooLarge.name}: o limite é 50 MB por ficheiro.`);
+    const combined = [...mediaFiles, ...incoming].filter((file, index, all) => all.findIndex((candidate) => candidate.name === file.name && candidate.size === file.size && candidate.lastModified === file.lastModified) === index);
+    if (combined.length > 4) return setUpdatesError("Cada update pode ter no máximo quatro anexos.");
+    setMediaFiles(combined);
+    setUpdatesError("");
   };
 
   return (
@@ -137,7 +175,7 @@ export default function OfficePresence({ presence, currentUserId, now, accent }:
             <span className="text-[9px] text-white/30">Sessão atual · Atualização automática de presença</span>
           </div>
           <div className="flex items-center gap-2">
-            <button type="button" onClick={() => setHistoryOpen(true)} className="rounded-lg border border-white/[.07] px-2.5 py-1.5 text-[10px] text-white/45 transition hover:bg-white/[.05] hover:text-white/75">Últimos updates</button>
+            <button type="button" onClick={() => { void loadUpdates(); setHistoryOpen(true); }} className="rounded-lg border border-white/[.07] px-2.5 py-1.5 text-[10px] text-white/45 transition hover:bg-white/[.05] hover:text-white/75">Últimos updates</button>
             <button type="button" onClick={() => { setUpdatesError(""); setComposerOpen(true); }} className="rounded-lg px-2.5 py-1.5 text-[10px] font-semibold text-slate-950 transition hover:-translate-y-0.5" style={{ backgroundColor: accent, boxShadow: `0 8px 24px ${accent}22` }}><Plus size={12} className="mr-1 inline" />Publicar update</button>
           </div>
         </div>
@@ -161,15 +199,18 @@ export default function OfficePresence({ presence, currentUserId, now, accent }:
           <div className="mb-6"><p className="font-mono text-[9px] uppercase tracking-[.24em]" style={{ color: accent }}>Update diário</p><h2 className="mt-2 text-2xl font-semibold">Publicar progresso</h2><p className="mt-1 text-xs text-white/35">Partilha com a equipa o que avançou hoje.</p></div>
           <label className="block text-[9px] uppercase tracking-wider text-white/35">Título<input autoFocus maxLength={120} value={title} onChange={(event) => setTitle(event.target.value)} placeholder="Ex: Homepage aprovada" className="mt-2 w-full rounded-xl border border-white/[.09] bg-white/[.035] px-3.5 py-3 text-sm text-white outline-none focus:border-white/20" /></label>
           <label className="mt-4 block text-[9px] uppercase tracking-wider text-white/35">Descrição<textarea maxLength={2000} rows={6} value={description} onChange={(event) => setDescription(event.target.value)} placeholder="Resume o trabalho concluído, decisões e próximos passos…" className="mt-2 w-full resize-none rounded-xl border border-white/[.09] bg-white/[.035] px-3.5 py-3 text-sm leading-6 text-white outline-none focus:border-white/20" /></label>
+          <div className="mt-4"><div className="flex items-center justify-between gap-3"><span className="text-[9px] uppercase tracking-wider text-white/35">Imagens ou vídeos</span><label className="cursor-pointer rounded-xl border border-white/[.09] bg-white/[.035] px-3 py-2 text-[10px] text-white/55 transition hover:border-white/20 hover:text-white"><ImagePlus size={13} className="mr-1.5 inline" />Anexar<input type="file" multiple accept="image/jpeg,image/png,image/gif,image/webp,image/avif,video/mp4,video/webm,video/quicktime" className="hidden" disabled={publishing || mediaFiles.length >= 4} onChange={(event) => { selectMedia(event.target.files); event.currentTarget.value = ""; }} /></label></div><p className="mt-1.5 text-[9px] text-white/20">Até 4 ficheiros · máximo 50 MB cada</p>
+            {mediaFiles.length > 0 && <div className="mt-3 grid gap-2 sm:grid-cols-2">{mediaFiles.map((file) => <div key={`${file.name}-${file.lastModified}`} className="flex min-w-0 items-center gap-2 rounded-xl border border-white/[.07] bg-black/15 px-3 py-2"><span className="shrink-0" style={{ color: accent }}>{file.type.startsWith("video/") ? <Film size={14} /> : <FileImage size={14} />}</span><span className="min-w-0 flex-1 truncate text-[10px] text-white/55">{file.name}</span><button type="button" aria-label={`Remover ${file.name}`} onClick={() => setMediaFiles((current) => current.filter((item) => item !== file))} className="shrink-0 text-white/25 hover:text-red-300"><Trash2 size={12} /></button></div>)}</div>}
+          </div>
           <div className="mt-2 flex justify-between text-[9px] text-white/20"><span>{updatesError}</span><span>{description.length}/2000</span></div>
           <div className="mt-6 flex justify-end gap-2"><button onClick={() => setComposerOpen(false)} className="rounded-xl border border-white/[.08] px-4 py-2.5 text-xs text-white/45">Cancelar</button><button disabled={publishing || !title.trim() || !description.trim()} onClick={publish} className="rounded-xl px-4 py-2.5 text-xs font-semibold text-slate-950 disabled:opacity-40" style={{ backgroundColor: accent }}><Send size={13} className="mr-1.5 inline" />{publishing ? "A publicar…" : "Publicar"}</button></div>
         </UpdateModal>}
         {historyOpen && <UpdateModal onClose={() => setHistoryOpen(false)} wide>
           <div className="mb-5"><p className="font-mono text-[9px] uppercase tracking-[.24em]" style={{ color: accent }}>Equipa AXION</p><h2 className="mt-2 text-2xl font-semibold">Últimos updates</h2><p className="mt-1 text-xs text-white/35">Progresso publicado por Nelson, Sousa e João.</p></div>
-          <div className="max-h-[58vh] space-y-2 overflow-auto pr-1">{updates.length === 0 ? <p className="rounded-xl border border-dashed border-white/10 p-8 text-center text-xs text-white/30">Ainda não existem updates publicados.</p> : updates.map((update) => <button key={update.id} onClick={() => { setHistoryOpen(false); setSelected(update); }} className="flex w-full items-start gap-3 rounded-2xl border border-white/[.07] bg-white/[.025] p-4 text-left transition hover:border-white/[.14] hover:bg-white/[.045]"><span className="grid h-9 w-9 shrink-0 place-items-center rounded-xl border border-white/[.07] bg-white/[.035]" style={{ color: accent }}><FileText size={15} /></span><span className="min-w-0 flex-1"><span className="flex flex-wrap items-center justify-between gap-2"><strong className="truncate text-sm font-medium text-white/80">{update.title}</strong><span className="text-[9px] text-white/25">{updateDate(update.createdAt)}</span></span><span className="mt-1 block text-[10px] font-semibold uppercase tracking-wider" style={{ color: accent }}>{update.authorName}</span><span className="mt-2 line-clamp-2 block text-xs leading-5 text-white/35">{update.description}</span></span></button>)}</div>
+          <div className="max-h-[58vh] space-y-2 overflow-auto pr-1">{updates.length === 0 ? <p className="rounded-xl border border-dashed border-white/10 p-8 text-center text-xs text-white/30">Ainda não existem updates publicados.</p> : updates.map((update) => <button key={update.id} onClick={() => { setHistoryOpen(false); setSelected(update); }} className="flex w-full items-start gap-3 rounded-2xl border border-white/[.07] bg-white/[.025] p-4 text-left transition hover:border-white/[.14] hover:bg-white/[.045]"><span className="grid h-9 w-9 shrink-0 place-items-center rounded-xl border border-white/[.07] bg-white/[.035]" style={{ color: accent }}><FileText size={15} /></span><span className="min-w-0 flex-1"><span className="flex flex-wrap items-center justify-between gap-2"><strong className="truncate text-sm font-medium text-white/80">{update.title}</strong><span className="text-[9px] text-white/25">{updateDate(update.createdAt)}</span></span><span className="mt-1 block text-[10px] font-semibold uppercase tracking-wider" style={{ color: accent }}>{update.authorName}</span><span className="mt-2 line-clamp-2 block text-xs leading-5 text-white/35">{update.description}</span>{update.media?.[0]?.url && <span className="relative mt-3 block h-28 overflow-hidden rounded-xl border border-white/[.07] bg-black/25">{update.media[0].kind === "video" ? <video src={update.media[0].url} autoPlay loop muted playsInline preload="metadata" className="h-full w-full object-cover" /> : <img src={update.media[0].url} alt={update.media[0].name} loading="lazy" className="h-full w-full object-cover" />}{update.media.length > 1 && <span className="absolute bottom-2 right-2 rounded-lg bg-black/70 px-2 py-1 text-[9px] text-white/75">+{update.media.length - 1}</span>}</span>}</span></button>)}</div>
         </UpdateModal>}
         {selected && <UpdateModal onClose={() => setSelected(null)}>
-          <div className="flex items-start gap-4"><span className="grid h-11 w-11 shrink-0 place-items-center rounded-2xl border border-white/[.08] bg-white/[.035]" style={{ color: accent }}><FileText size={18} /></span><div><p className="text-[9px] font-semibold uppercase tracking-[.18em]" style={{ color: accent }}>{selected.authorName}</p><h2 className="mt-2 text-2xl font-semibold">{selected.title}</h2><p className="mt-1 flex items-center gap-1.5 text-[10px] text-white/25"><Clock3 size={11} />{updateDate(selected.createdAt)}</p></div></div><div className="mt-6 whitespace-pre-wrap rounded-2xl border border-white/[.07] bg-black/15 p-5 text-sm leading-7 text-white/60">{selected.description}</div>
+          <div className="flex items-start gap-4"><span className="grid h-11 w-11 shrink-0 place-items-center rounded-2xl border border-white/[.08] bg-white/[.035]" style={{ color: accent }}><FileText size={18} /></span><div><p className="text-[9px] font-semibold uppercase tracking-[.18em]" style={{ color: accent }}>{selected.authorName}</p><h2 className="mt-2 text-2xl font-semibold">{selected.title}</h2><p className="mt-1 flex items-center gap-1.5 text-[10px] text-white/25"><Clock3 size={11} />{updateDate(selected.createdAt)}</p></div></div><div className="mt-6 whitespace-pre-wrap rounded-2xl border border-white/[.07] bg-black/15 p-5 text-sm leading-7 text-white/60">{selected.description}</div>{selected.media?.length > 0 && <div className={`mt-4 grid gap-3 ${selected.media.length > 1 ? "sm:grid-cols-2" : "grid-cols-1"}`}>{selected.media.map((media) => <figure key={media.id} className="overflow-hidden rounded-2xl border border-white/[.08] bg-black/30">{media.kind === "video" ? <video src={media.url} aria-label={media.name} autoPlay loop muted playsInline controls preload="metadata" className="max-h-[55vh] w-full object-contain" /> : <img src={media.url} alt={media.name} className="max-h-[55vh] w-full object-contain" />}<figcaption className="truncate border-t border-white/[.06] px-3 py-2 text-[9px] text-white/30">{media.name}</figcaption></figure>)}</div>}
         </UpdateModal>}
       </AnimatePresence>
     </>
