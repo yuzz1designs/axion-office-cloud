@@ -5,6 +5,7 @@ import { getAllowedEmails } from "./supabaseConfig";
 import { recordTeamActivity } from "./teamActivityStore";
 import { MAX_TEAM_UPDATE_MEDIA_BYTES } from "./teamUpdateCore";
 import { attachTeamUpdateMedia, createTeamUpdate, listTeamUpdates, markTeamUpdateViewed } from "./teamUpdateStore";
+import { dispatchTeamUpdatePush } from "./pushNotificationStore";
 
 function json(res: ServerResponse, status: number, value: unknown) { res.statusCode = status; res.setHeader("Content-Type", "application/json; charset=utf-8"); res.setHeader("Cache-Control", "no-store"); res.end(JSON.stringify(value)); }
 async function body(req: IncomingMessage) { const chunks: Buffer[] = []; let size = 0; for await (const chunk of req) { const value = Buffer.isBuffer(chunk) ? chunk : Buffer.from(chunk); size += value.length; if (size > 16_384) throw new Error("TEAM_UPDATE_TOO_LARGE"); chunks.push(value); } return chunks.length ? JSON.parse(Buffer.concat(chunks).toString("utf8")) : {}; }
@@ -32,6 +33,7 @@ export async function handleTeamUpdateApi(req: IncomingMessage, res: ServerRespo
       if (url.pathname !== "/api/team/updates") return json(res, 404, { error: "Endpoint de updates não encontrado." });
       const update = await createTeamUpdate(backend.client, user.id, await body(req));
       await recordTeamActivity(backend.client, user.id, "team.update.published", "team_update", update.id, { name: update.title });
+      await dispatchTeamUpdatePush(backend.client, { updateId: update.id, authorUserId: user.id, authorName: update.authorName }).catch((error) => console.error("[TEAM UPDATE PUSH]", error instanceof Error ? error.message : error));
       return json(res, 201, { update });
     }
     return json(res, 405, { error: "Método não permitido." });

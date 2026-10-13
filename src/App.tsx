@@ -18,6 +18,8 @@ import { normalizeAppearanceSettings } from "./lib/appearance";
 import { sanitizeCommandCenterConfig, sanitizeLanguageRegionSettings } from "./components/settings/settingsCore";
 import { AivaSessionProvider } from "./components/aiva/AivaSessionProvider";
 import { AIVA_ENABLED } from "./lib/features";
+import MobileOffice from "./components/mobile/MobileOffice";
+import { useMobileLayout } from "./lib/mobileLayout";
 
 interface AuthStatus {
   authConfigured?: boolean;
@@ -29,10 +31,13 @@ interface AuthStatus {
 }
 
 const INITIAL_QUOTES_GMAIL_RETURN = new URLSearchParams(window.location.search).get("quotes-gmail");
+const INITIAL_PUSH_TARGET = new URLSearchParams(window.location.search).has("update") || new URLSearchParams(window.location.search).has("notifications");
+const INITIAL_COMMAND_TAB = INITIAL_QUOTES_GMAIL_RETURN ? "quotes" : new URLSearchParams(window.location.search).has("notifications") ? "settings" : undefined;
 
 export default function App() {
   const reducedMotion = useReducedMotion();
   const quotesGmailReturn = INITIAL_QUOTES_GMAIL_RETURN;
+  const mobileLayout = useMobileLayout();
   const [enteringOffice, setEnteringOffice] = useState(false);
   const desktop = isAxionDesktop(window.location.href);
   const initialDesktopOAuthReturn = getDesktopOAuthReturnState(window.location.href);
@@ -102,7 +107,9 @@ export default function App() {
   const refreshAuthStatus = async () => {
     const response = await fetch("/api/profile/status");
     if (!response.ok || !response.headers.get("content-type")?.includes("application/json")) throw new Error("AXION_API_UNAVAILABLE");
-    setAuthStatus(await response.json());
+    const status = await response.json() as AuthStatus;
+    setAuthStatus(status);
+    return status;
   };
 
   useEffect(() => {
@@ -129,10 +136,10 @@ export default function App() {
           return;
         }
         const sessionBridged = config.configured ? await bridgeSupabaseSession(config) : false;
-        await refreshAuthStatus();
-        if (quotesGmailReturn || shouldEnterAfterOAuth(oauthReturn, sessionBridged)) {
+        const status = await refreshAuthStatus();
+        if (quotesGmailReturn || shouldEnterAfterOAuth(oauthReturn, sessionBridged) || (INITIAL_PUSH_TARGET && status.hasProfile)) {
           setScreen("command-center");
-          if (!quotesGmailReturn) window.history.replaceState({}, document.title, window.location.pathname);
+          if (!quotesGmailReturn && !INITIAL_PUSH_TARGET) window.history.replaceState({}, document.title, window.location.pathname);
         }
         setOauthBootstrap(false);
       } catch (error) {
@@ -247,8 +254,8 @@ export default function App() {
             transition={{ duration: reducedMotion ? 0.15 : 0.8, ease: [0.16, 1, 0.3, 1] }}
             className="w-full h-full"
           >
-            {AIVA_ENABLED ? <AivaSessionProvider><CommandCenter
-              initialTab={quotesGmailReturn ? "quotes" : undefined}
+            {mobileLayout && authStatus?.profile ? <MobileOffice profile={authStatus.profile} accent={activeAccent.hex} onSignOut={() => void handleSignOut()} /> : AIVA_ENABLED ? <AivaSessionProvider><CommandCenter
+              initialTab={INITIAL_COMMAND_TAB}
               appearance={appearance}
               onAppearanceChange={handleAppearanceChange}
               commandCenterConfig={commandCenterConfig}
@@ -262,7 +269,7 @@ export default function App() {
               onBackToWelcome={() => void handleSignOut()}
               aivaEnabled
             /></AivaSessionProvider> : <CommandCenter
-              initialTab={quotesGmailReturn ? "quotes" : undefined}
+              initialTab={INITIAL_COMMAND_TAB}
               appearance={appearance}
               onAppearanceChange={handleAppearanceChange}
               commandCenterConfig={commandCenterConfig}

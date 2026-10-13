@@ -15,6 +15,7 @@ import { handleClientApi } from './src/server/clientApi';
 import { handleMeetingApi } from './src/server/meetingApi';
 import { handleOfficePresenceApi } from './src/server/officePresenceApi';
 import { handleTeamUpdateApi } from './src/server/teamUpdateApi';
+import { handlePushNotificationApi } from './src/server/pushNotificationApi';
 import { handleQuoteApi } from './src/server/quoteApi';
 import { handleGmailQuotesApi } from './src/server/gmailQuotesApi';
 
@@ -23,7 +24,8 @@ export default defineConfig(({ mode }) => {
   const googleEnv = loadEnv(mode, process.cwd(), 'GOOGLE_');
   const axionEnv = loadEnv(mode, process.cwd(), 'AXION_');
   const supabaseEnv = loadEnv(mode, process.cwd(), 'SUPABASE_');
-  Object.assign(process.env, serverEnv, googleEnv, axionEnv, supabaseEnv);
+  const vapidEnv = loadEnv(mode, process.cwd(), 'VAPID_');
+  Object.assign(process.env, serverEnv, googleEnv, axionEnv, supabaseEnv, vapidEnv);
   return {
     publicDir: 'assets',
     plugins: [
@@ -42,6 +44,7 @@ export default defineConfig(({ mode }) => {
           server.middlewares.use((req, res, next) => void handleTeamActivityApi(req, res, next));
           server.middlewares.use((req, res, next) => void handleOfficePresenceApi(req, res, next));
           server.middlewares.use((req, res, next) => void handleTeamUpdateApi(req, res, next));
+          server.middlewares.use((req, res, next) => void handlePushNotificationApi(req, res, next));
           server.middlewares.use((req, res, next) => void handleNotificationApi(req, res, next));
           server.middlewares.use((req, res, next) => void handleClientApi(req, res, next));
           server.middlewares.use((req, res, next) => void handleMeetingApi(req, res, next));
