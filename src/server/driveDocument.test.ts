@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import { decodeUploadFileName, formatFileSize, mapDriveFile, validateDriveImagePreview, validateDriveUpload, type DriveFile } from "./driveDocument";
+import { decodeUploadFileName, formatFileSize, getDriveEmbeddedPreviewUrl, getDrivePreviewKind, mapDriveFile, validateDriveContentPreview, validateDriveUpload, type DriveFile } from "./driveDocument";
 
 test("normaliza um PDF do Drive para o contrato do depósito", () => {
   const file: DriveFile = {
@@ -66,11 +66,22 @@ test("descodifica nomes Unicode enviados de forma segura no cabeçalho", () => {
   assert.throws(() => decodeUploadFileName(""), /nome/i);
 });
 
-test("só permite previews de imagens dentro da pasta AXION", () => {
+test("permite conteúdo de imagens e PDF apenas dentro da pasta AXION", () => {
   const valid = { fileId: "drive_image-123", folderId: "axion-docs", parents: ["axion-docs"], mimeType: "image/png", size: "2048" };
-  assert.doesNotThrow(() => validateDriveImagePreview(valid));
-  assert.throws(() => validateDriveImagePreview({ ...valid, fileId: "../secret" }), /INVALID_ID/);
-  assert.throws(() => validateDriveImagePreview({ ...valid, parents: ["another-folder"] }), /FORBIDDEN/);
-  assert.throws(() => validateDriveImagePreview({ ...valid, mimeType: "application/pdf" }), /UNSUPPORTED/);
-  assert.throws(() => validateDriveImagePreview({ ...valid, size: String(50 * 1024 * 1024 + 1) }), /TOO_LARGE/);
+  assert.doesNotThrow(() => validateDriveContentPreview(valid));
+  assert.doesNotThrow(() => validateDriveContentPreview({ ...valid, mimeType: "application/pdf" }));
+  assert.throws(() => validateDriveContentPreview({ ...valid, fileId: "../secret" }), /INVALID_ID/);
+  assert.throws(() => validateDriveContentPreview({ ...valid, parents: ["another-folder"] }), /FORBIDDEN/);
+  assert.throws(() => validateDriveContentPreview({ ...valid, mimeType: "application/zip" }), /UNSUPPORTED/);
+  assert.throws(() => validateDriveContentPreview({ ...valid, size: String(50 * 1024 * 1024 + 1) }), /TOO_LARGE/);
+});
+
+test("identifica previews PDF e Word e cria URLs Google seguras", () => {
+  assert.equal(getDrivePreviewKind({ isFolder: false, mimeType: "application/pdf", extension: "PDF" }), "pdf");
+  assert.equal(getDrivePreviewKind({ isFolder: false, mimeType: "application/vnd.openxmlformats-officedocument.wordprocessingml.document", extension: "DOCX" }), "word");
+  assert.equal(getDrivePreviewKind({ isFolder: false, mimeType: "application/msword", extension: "DOC" }), "word");
+  assert.equal(getDrivePreviewKind({ isFolder: true, mimeType: "application/vnd.google-apps.folder", extension: "PASTA" }), null);
+  assert.equal(getDriveEmbeddedPreviewUrl({ id: "word_123", mimeType: "application/msword" }), "https://drive.google.com/file/d/word_123/preview");
+  assert.equal(getDriveEmbeddedPreviewUrl({ id: "doc_123", mimeType: "application/vnd.google-apps.document" }), "https://docs.google.com/document/d/doc_123/preview");
+  assert.throws(() => getDriveEmbeddedPreviewUrl({ id: "../secret", mimeType: "application/msword" }), /INVALID_ID/);
 });

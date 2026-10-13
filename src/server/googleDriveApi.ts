@@ -1,7 +1,7 @@
 import type { IncomingMessage, ServerResponse } from "node:http";
 import { createSign } from "node:crypto";
 import { readFileSync } from "node:fs";
-import { decodeUploadFileName, mapDriveFile, MAX_DRIVE_UPLOAD_BYTES, validateDriveImagePreview, validateDriveUpload, type DriveFile } from "./driveDocument";
+import { decodeUploadFileName, mapDriveFile, MAX_DRIVE_UPLOAD_BYTES, validateDriveContentPreview, validateDriveUpload, type DriveFile } from "./driveDocument";
 import { uploadDriveDocument } from "./googleDriveUpload";
 import { getGoogleOAuthClient, getGoogleOAuthStore } from "./googleOAuthApi";
 import { authenticateSupabaseUser, readSessionToken } from "./supabaseAuth";
@@ -93,8 +93,8 @@ export async function listDocuments() {
   return (result.files || []).map(mapDriveFile);
 }
 
-export async function getDriveImage(fileId: string) {
-  validateDriveImagePreview({ fileId, folderId: DOCS_FOLDER_ID, mimeType: "image/pending", parents: [DOCS_FOLDER_ID] });
+export async function getDrivePreviewContent(fileId: string) {
+  if (!/^[a-zA-Z0-9_-]+$/.test(fileId)) throw new Error("DRIVE_PREVIEW_INVALID_ID");
   const credentials = getServiceAccount();
   if (!credentials) throw new Error("GOOGLE_DRIVE_NOT_CONFIGURED");
   const token = await getAccessToken(credentials);
@@ -103,7 +103,7 @@ export async function getDriveImage(fileId: string) {
   });
   const metadata = await metadataResponse.json() as { mimeType?: string; size?: string; parents?: string[]; error?: { message?: string } };
   if (!metadataResponse.ok) throw new Error(metadata.error?.message || "DRIVE_PREVIEW_NOT_FOUND");
-  validateDriveImagePreview({ fileId, folderId: DOCS_FOLDER_ID, ...metadata });
+  validateDriveContentPreview({ fileId, folderId: DOCS_FOLDER_ID, ...metadata });
   const contentResponse = await fetch(`https://www.googleapis.com/drive/v3/files/${encodeURIComponent(fileId)}?alt=media&supportsAllDrives=true`, {
     headers: { Authorization: `Bearer ${token}` },
   });
@@ -154,14 +154,14 @@ export async function handleGoogleDriveApi(req: IncomingMessage, res: ServerResp
     }
     const previewMatch = url.pathname.match(/^\/api\/documents\/([^/]+)\/content$/);
     if (previewMatch && req.method === "GET") {
-      const image = await getDriveImage(decodeURIComponent(previewMatch[1]));
+      const content = await getDrivePreviewContent(decodeURIComponent(previewMatch[1]));
       res.statusCode = 200;
-      res.setHeader("Content-Type", image.mimeType);
-      res.setHeader("Content-Length", String(image.bytes.length));
+      res.setHeader("Content-Type", content.mimeType);
+      res.setHeader("Content-Length", String(content.bytes.length));
       res.setHeader("Cache-Control", "private, max-age=300");
       res.setHeader("Content-Disposition", "inline");
       res.setHeader("X-Content-Type-Options", "nosniff");
-      res.end(image.bytes);
+      res.end(content.bytes);
       return;
     }
     if (url.pathname === "/api/documents/upload" && req.method === "POST") {

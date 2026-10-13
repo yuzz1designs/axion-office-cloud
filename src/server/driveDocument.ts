@@ -28,13 +28,43 @@ export interface DriveDocument {
 const FOLDER_MIME_TYPE = "application/vnd.google-apps.folder";
 export const MAX_DRIVE_UPLOAD_BYTES = 50 * 1024 * 1024;
 
+const DIRECT_PREVIEW_MIME_TYPES = new Set([
+  "application/pdf",
+]);
+
+const WORD_PREVIEW_MIME_TYPES = new Set([
+  "application/msword",
+  "application/rtf",
+  "application/vnd.google-apps.document",
+  "application/vnd.oasis.opendocument.text",
+  "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+]);
+
+export type DrivePreviewKind = "image" | "pdf" | "word";
+
+export function getDrivePreviewKind(document: Pick<DriveDocument, "isFolder" | "mimeType" | "extension">): DrivePreviewKind | null {
+  if (document.isFolder) return null;
+  if (document.mimeType.startsWith("image/")) return "image";
+  if (DIRECT_PREVIEW_MIME_TYPES.has(document.mimeType) || document.extension === "PDF") return "pdf";
+  if (WORD_PREVIEW_MIME_TYPES.has(document.mimeType) || ["DOC", "DOCX", "ODT", "RTF"].includes(document.extension)) return "word";
+  return null;
+}
+
+export function getDriveEmbeddedPreviewUrl(document: Pick<DriveDocument, "id" | "mimeType">): string {
+  if (!/^[a-zA-Z0-9_-]+$/.test(document.id)) throw new Error("DRIVE_PREVIEW_INVALID_ID");
+  const base = document.mimeType === "application/vnd.google-apps.document"
+    ? "https://docs.google.com/document/d"
+    : "https://drive.google.com/file/d";
+  return `${base}/${encodeURIComponent(document.id)}/preview`;
+}
+
 export function validateDriveUpload({ fileName, byteLength }: { fileName: string; byteLength: number }) {
   if (!fileName.trim()) throw new Error("O nome do ficheiro é obrigatório.");
   if (byteLength <= 0) throw new Error("O ficheiro está vazio.");
   if (byteLength > MAX_DRIVE_UPLOAD_BYTES) throw new Error("O ficheiro excede o limite de 50 MB.");
 }
 
-export function validateDriveImagePreview({
+export function validateDriveContentPreview({
   fileId,
   mimeType,
   size,
@@ -49,7 +79,7 @@ export function validateDriveImagePreview({
 }) {
   if (!/^[a-zA-Z0-9_-]+$/.test(fileId)) throw new Error("DRIVE_PREVIEW_INVALID_ID");
   if (!parents?.includes(folderId)) throw new Error("DRIVE_PREVIEW_FORBIDDEN");
-  if (!mimeType?.startsWith("image/")) throw new Error("DRIVE_PREVIEW_UNSUPPORTED");
+  if (!mimeType?.startsWith("image/") && !DIRECT_PREVIEW_MIME_TYPES.has(mimeType || "")) throw new Error("DRIVE_PREVIEW_UNSUPPORTED");
   if (Number(size || 0) > MAX_DRIVE_UPLOAD_BYTES) throw new Error("DRIVE_PREVIEW_TOO_LARGE");
 }
 
