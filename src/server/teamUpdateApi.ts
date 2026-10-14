@@ -4,7 +4,7 @@ import { getSupabaseBackend } from "./supabaseBackend";
 import { getAllowedEmails } from "./supabaseConfig";
 import { recordTeamActivity } from "./teamActivityStore";
 import { MAX_TEAM_UPDATE_MEDIA_BYTES } from "./teamUpdateCore";
-import { attachTeamUpdateMedia, createTeamUpdate, listTeamUpdates, markTeamUpdateViewed } from "./teamUpdateStore";
+import { attachTeamUpdateMedia, createTeamUpdate, deleteTeamUpdate, listTeamUpdates, markTeamUpdateViewed, updateTeamUpdate } from "./teamUpdateStore";
 import { dispatchTeamUpdatePush } from "./pushNotificationStore";
 
 function json(res: ServerResponse, status: number, value: unknown) { res.statusCode = status; res.setHeader("Content-Type", "application/json; charset=utf-8"); res.setHeader("Cache-Control", "no-store"); res.end(JSON.stringify(value)); }
@@ -20,6 +20,17 @@ export async function handleTeamUpdateApi(req: IncomingMessage, res: ServerRespo
     const user = await authenticateSupabaseUser(readSessionToken(req.headers.cookie), backend.client.auth, getAllowedEmails());
     if (!user) return json(res, 401, { error: "Inicia sessão com uma conta AXION autorizada." });
     if (url.pathname === "/api/team/updates" && req.method === "GET") return json(res, 200, { updates: await listTeamUpdates(backend.client, user.id) });
+    const updateMatch = url.pathname.match(/^\/api\/team\/updates\/([^/]+)$/);
+    if (updateMatch && req.method === "PATCH") {
+      const update = await updateTeamUpdate(backend.client, user.id, decodeURIComponent(updateMatch[1]), await body(req));
+      await recordTeamActivity(backend.client, user.id, "team.update.edited", "team_update", update.id, { name: update.title });
+      return json(res, 200, { update });
+    }
+    if (updateMatch && req.method === "DELETE") {
+      const deleted = await deleteTeamUpdate(backend.client, user.id, decodeURIComponent(updateMatch[1]));
+      await recordTeamActivity(backend.client, user.id, "team.update.deleted", "team_update", deleted.id, { name: deleted.title });
+      return json(res, 200, { deleted: true, id: deleted.id });
+    }
     if (req.method === "POST") {
       const readMatch = url.pathname.match(/^\/api\/team\/updates\/([^/]+)\/read$/);
       if (readMatch) return json(res, 200, { viewer: await markTeamUpdateViewed(backend.client, user.id, decodeURIComponent(readMatch[1])) });

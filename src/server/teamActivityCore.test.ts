@@ -9,6 +9,8 @@ test("transforma alterações publicadas numa descrição legível", () => {
   assert.equal(describeAuditAction("profile.updated", {}), "atualizou o perfil");
   assert.equal(describeAuditAction("client.updated", { name: "Acme" }), "atualizou o cliente Acme");
   assert.equal(describeAuditAction("team.update.published", { name: "Homepage aprovada" }), "publicou o update Homepage aprovada");
+  assert.equal(describeAuditAction("team.update.edited", { name: "Homepage aprovada" }), "editou o update Homepage aprovada");
+  assert.equal(describeAuditAction("team.update.deleted", { name: "Homepage aprovada" }), "apagou o update Homepage aprovada");
 });
 
 test("não expõe nomes vazios nem ações internas desconhecidas", () => {

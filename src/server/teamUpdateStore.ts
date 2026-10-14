@@ -25,6 +25,7 @@ export interface TeamUpdateItem {
   description: string;
   publishedOn: string;
   createdAt: string;
+  updatedAt: string;
   media: TeamUpdateMedia[];
   viewers: TeamUpdateViewer[];
   pendingViewerNames: string[];
@@ -43,7 +44,7 @@ function lisbonDate() {
 export async function listTeamUpdates(client: SupabaseClient, userId: string, limit = 30): Promise<TeamUpdateItem[]> {
   const targetWorkspaceId = await workspaceId(client, userId);
   const [{ data: updates, error }, { data: profiles, error: profileError }, { data: memberships, error: membershipError }] = await Promise.all([
-    client.from("team_updates").select("id,author_user_id,title,description,published_on,created_at").eq("workspace_id", targetWorkspaceId).order("created_at", { ascending: false }).limit(Math.min(Math.max(limit, 1), 50)),
+    client.from("team_updates").select("id,author_user_id,title,description,published_on,created_at,updated_at").eq("workspace_id", targetWorkspaceId).order("created_at", { ascending: false }).limit(Math.min(Math.max(limit, 1), 50)),
     client.from("profiles").select("user_id,preferred_name,display_name,email").eq("workspace_id", targetWorkspaceId),
     client.from("workspace_members").select("user_id").eq("workspace_id", targetWorkspaceId).eq("status", "active"),
   ]);
@@ -75,6 +76,7 @@ export async function listTeamUpdates(client: SupabaseClient, userId: string, li
     description: update.description,
     publishedOn: update.published_on,
     createdAt: update.created_at,
+    updatedAt: update.updated_at,
     media: mediaByUpdate.get(update.id) || [],
     viewers: viewersByUpdate.get(update.id) || [],
     pendingViewerNames: pendingTeamUpdateViewerIds(update.author_user_id, memberIds, (viewersByUpdate.get(update.id) || []).map((viewer) => viewer.userId)).map((memberId) => names.get(memberId) || "Membro AXION"),
@@ -90,10 +92,42 @@ export async function createTeamUpdate(client: SupabaseClient, userId: string, r
     title: input.title,
     description: input.description,
     published_on: lisbonDate(),
-  }).select("id,author_user_id,title,description,published_on,created_at").single();
+  }).select("id,author_user_id,title,description,published_on,created_at,updated_at").single();
   if (error || !data) throw new Error(`TEAM_UPDATE_WRITE_FAILED:${error?.message}`);
   const { data: profile } = await client.from("profiles").select("preferred_name,display_name,email").eq("user_id", userId).single();
-  return { id: data.id, authorUserId: data.author_user_id, authorName: profile?.preferred_name || profile?.display_name || profile?.email || "Membro AXION", title: data.title, description: data.description, publishedOn: data.published_on, createdAt: data.created_at, media: [], viewers: [], pendingViewerNames: [] };
+  return { id: data.id, authorUserId: data.author_user_id, authorName: profile?.preferred_name || profile?.display_name || profile?.email || "Membro AXION", title: data.title, description: data.description, publishedOn: data.published_on, createdAt: data.created_at, updatedAt: data.updated_at, media: [], viewers: [], pendingViewerNames: [] };
+}
+
+export async function updateTeamUpdate(client: SupabaseClient, userId: string, updateId: string, raw: Record<string, unknown>) {
+  const targetWorkspaceId = await workspaceId(client, userId);
+  const input = normalizeTeamUpdateInput(raw);
+  const updatedAt = new Date().toISOString();
+  const { data, error } = await client.from("team_updates").update({ title: input.title, description: input.description, updated_at: updatedAt })
+    .eq("id", updateId).eq("workspace_id", targetWorkspaceId).eq("author_user_id", userId)
+    .select("id,title,description,updated_at").single();
+  if (error || !data) throw new Error("TEAM_UPDATE_NOT_FOUND");
+  return { id: data.id as string, title: data.title as string, description: data.description as string, updatedAt: data.updated_at as string };
+}
+
+export async function deleteTeamUpdate(client: SupabaseClient, userId: string, updateId: string) {
+  const targetWorkspaceId = await workspaceId(client, userId);
+  const { data: update, error: updateError } = await client.from("team_updates").select("id,title").eq("id", updateId).eq("workspace_id", targetWorkspaceId).eq("author_user_id", userId).single();
+  if (updateError || !update) throw new Error("TEAM_UPDATE_NOT_FOUND");
+  const { data: assets, error: assetReadError } = await client.from("file_assets").select("id,container,object_id").eq("workspace_id", targetWorkspaceId).eq("entity_type", "team_update").eq("entity_id", updateId);
+  if (assetReadError) throw new Error(`TEAM_UPDATE_MEDIA_READ_FAILED:${assetReadError.message}`);
+  const { error: deleteError } = await client.from("team_updates").delete().eq("id", updateId).eq("workspace_id", targetWorkspaceId).eq("author_user_id", userId);
+  if (deleteError) throw new Error(`TEAM_UPDATE_DELETE_FAILED:${deleteError.message}`);
+  if (assets?.length) {
+    const { error: metadataError } = await client.from("file_assets").delete().in("id", assets.map((asset) => asset.id));
+    if (metadataError) console.error("[TEAM UPDATE MEDIA CLEANUP]", metadataError.message);
+    const byContainer = new Map<string, string[]>();
+    for (const asset of assets) byContainer.set(asset.container, [...(byContainer.get(asset.container) || []), asset.object_id]);
+    for (const [container, paths] of byContainer) {
+      const { error } = await client.storage.from(container).remove(paths);
+      if (error) console.error("[TEAM UPDATE STORAGE CLEANUP]", error.message);
+    }
+  }
+  return { id: update.id as string, title: update.title as string };
 }
 
 export async function markTeamUpdateViewed(client: SupabaseClient, userId: string, updateId: string): Promise<TeamUpdateViewer | null> {
