@@ -108,6 +108,7 @@ export default function CommandCenter({
   const ownPresence = officePresence.snapshot?.members.find((member) => member.userId === profile?.id);
   const [systemBooted, setSystemBooted] = useState(false);
   const [mousePos, setMousePos] = useState({ x: 0, y: 0 });
+  const [notesDirty, setNotesDirty] = useState(false);
 
   // Shared Global Meeting & Calendar States
   const [events, setEvents] = useState<CalendarEvent[]>([]);
@@ -364,7 +365,7 @@ export default function CommandCenter({
       {/* Floating Left Navigation Bar (Rounded capsule floating with customizable light) */}
       <SidebarNav 
         activeTab={activeTab}
-        onSelectTab={(tab) => setActiveTab(tab)}
+        onSelectTab={(tab) => { if (activeTab === "notes" && notesDirty && !window.confirm("Tens alterações por guardar. Queres descartá-las?")) return; setNotesDirty(false); setActiveTab(tab); }}
         unreadNotifications={unreadNotifications}
         onOpenNotifications={() => setActiveTab("notifications")}
         onOpenProfile={() => setActiveTab("profile")}
@@ -619,7 +620,7 @@ export default function CommandCenter({
             transition={{ duration: 0.3, ease: [0.16, 1, 0.3, 1] }}
             className="w-full h-full overflow-y-auto pr-2 relative z-10"
           >
-            <NotesScreen currentUserId={profile?.id || ""} accent={currentAccent.hex} onBack={() => { const url = new URL(window.location.href); url.searchParams.delete("note"); window.history.replaceState({}, "", url); setActiveTab("overview"); }} />
+            <NotesScreen currentUserId={profile?.id || ""} accent={currentAccent.hex} onDirtyChange={setNotesDirty} onBack={() => { const url = new URL(window.location.href); url.searchParams.delete("note"); window.history.replaceState({}, "", url); setActiveTab("overview"); }} />
           </motion.div>
         ) : activeTab === "settings" ? (
           <motion.div
