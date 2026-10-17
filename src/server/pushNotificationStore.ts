@@ -100,3 +100,21 @@ export async function sendTestPush(client: SupabaseClient, userId: string, rawDe
   if (result === "failed" || result === "expired") throw new Error(result === "expired" ? "PUSH_SUBSCRIPTION_EXPIRED" : "PUSH_TEST_FAILED");
   return { sent: result === "sent", duplicate: result === "duplicate" };
 }
+
+export async function processDueNoteReminders(client: SupabaseClient, now = new Date()) {
+  const vapid = getVapidConfig();
+  if (!vapid) return { configured: false, processed: 0, sent: 0 };
+  const { data: notes, error } = await client.from("personal_notes").select("id,owner_user_id,title,reminder_at").eq("archived", false).is("reminder_completed_at", null).is("reminder_notified_at", null).not("reminder_at", "is", null).lte("reminder_at", now.toISOString()).order("reminder_at").limit(100);
+  if (error) throw new Error(`NOTE_REMINDER_SCAN_FAILED:${error.message}`);
+  let sent = 0;
+  for (const note of notes || []) {
+    const { data: subscriptions, error: subscriptionError } = await client.from("push_subscriptions").select("id,user_id,endpoint,p256dh,auth").eq("user_id", note.owner_user_id);
+    if (subscriptionError) throw new Error(`NOTE_REMINDER_SUBSCRIPTIONS_FAILED:${subscriptionError.message}`);
+    const eventKey = `note-reminder:${note.id}`;
+    const payload = { title: "Lembrete do AXION Office", body: note.title || "Tens uma nota para rever.", icon: "/icon-192.png", badge: "/icon-192.png", url: `/?note=${encodeURIComponent(note.id)}`, tag: eventKey, noteId: note.id };
+    const results = await Promise.all((subscriptions as PushRow[] || []).map((subscription) => deliver(client, vapid, eventKey, subscription, payload)));
+    sent += results.filter((result) => result === "sent").length;
+    await client.from("personal_notes").update({ reminder_notified_at: now.toISOString() }).eq("id", note.id).is("reminder_notified_at", null);
+  }
+  return { configured: true, processed: (notes || []).length, sent };
+}

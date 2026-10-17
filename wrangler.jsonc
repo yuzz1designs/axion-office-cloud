@@ -21,5 +21,6 @@
     "VAPID_SUBJECT": "mailto:axionportugal@gmail.com",
     "VAPID_PUBLIC_KEY": "BALJXcW_lqUWnJqpP5GDkV-wGNLEtQ7ncEgo1qNqxuHVAVe9P5GQ8hSqkdd6jNTXTLyfOirCG--DeAm77sij6YQ"
   },
-  "observability": { "enabled": true }
+  "observability": { "enabled": true },
+  "triggers": { "crons": ["* * * * *"] }
 }

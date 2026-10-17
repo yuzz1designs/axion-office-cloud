@@ -12,13 +12,14 @@ import {
   Database,
   FolderArchive,
   CreditCard,
-  ReceiptText
+  ReceiptText,
+  NotebookPen
 } from "lucide-react";
 import { AccentColorOption } from "../../types/settings";
 import { useLanguage } from "../../i18n/LanguageContext";
 import type { AxionProfile } from "../../types/profile";
 
-export type NavTabId = "overview" | "clients" | "quotes" | "database" | "documents" | "calendar" | "payments" | "aiva" | "settings" | "profile" | "notifications";
+export type NavTabId = "overview" | "clients" | "quotes" | "database" | "documents" | "calendar" | "payments" | "notes" | "aiva" | "settings" | "profile" | "notifications";
 
 interface NavItem {
   id: NavTabId;
@@ -36,6 +37,7 @@ const NAV_ITEMS: NavItem[] = [
   { id: "documents", label: "Depósito de Documentos", sublabel: "Vault Digital", icon: FolderArchive },
   { id: "calendar", label: "Agenda & Reuniões", sublabel: "Google Calendar & Tasks", icon: Calendar },
   { id: "payments", label: "Financeiro", sublabel: "Despesas & Pagamentos", icon: CreditCard },
+  { id: "notes", label: "Notas", sublabel: "Ideias & Lembretes", icon: NotebookPen },
   { id: "aiva", label: "AIVA Intelligence", sublabel: "Assistente Operacional", icon: Sparkles },
   { id: "settings", label: "Definições", sublabel: "Configurações", icon: Settings },
 ];
@@ -91,6 +93,7 @@ export default function SidebarNav({
     { id: "documents", label: t("nav.documents"), sublabel: t("nav.documentsSub"), icon: FolderArchive },
     { id: "calendar", label: t("nav.calendar"), sublabel: t("nav.calendarSub"), icon: Calendar },
     { id: "payments", label: t("nav.payments"), sublabel: t("nav.paymentsSub"), icon: CreditCard },
+    { id: "notes", label: t("nav.notes"), sublabel: t("nav.notesSub"), icon: NotebookPen },
     { id: "aiva", label: t("nav.aiva"), sublabel: language === "pt" ? "Assistente Operacional" : "Operational Assistant", icon: Sparkles },
     { id: "settings", label: t("nav.settings"), sublabel: t("nav.settingsSub"), icon: Settings },
   ] satisfies NavItem[]).filter((item) => aivaEnabled || item.id !== "aiva");

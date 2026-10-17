@@ -158,6 +158,7 @@ export function subscribeAxionRealtime(config: SupabasePublicConfig, onChange: (
     .on("postgres_changes", { event: "*", schema: "public", table: "notification_reads" }, () => onChange("notification_reads"))
     .on("postgres_changes", { event: "*", schema: "public", table: "team_updates" }, () => onChange("team_updates"))
     .on("postgres_changes", { event: "*", schema: "public", table: "team_update_reads" }, () => onChange("team_update_reads"))
+    .on("postgres_changes", { event: "*", schema: "public", table: "personal_notes" }, () => onChange("personal_notes"))
     .subscribe();
   return () => { void supabase.removeChannel(channel); };
 }

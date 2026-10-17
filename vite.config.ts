@@ -18,6 +18,7 @@ import { handleTeamUpdateApi } from './src/server/teamUpdateApi';
 import { handlePushNotificationApi } from './src/server/pushNotificationApi';
 import { handleQuoteApi } from './src/server/quoteApi';
 import { handleGmailQuotesApi } from './src/server/gmailQuotesApi';
+import { handlePersonalNoteApi } from './src/server/personalNoteApi';
 
 export default defineConfig(({ mode }) => {
   const serverEnv = loadEnv(mode, process.cwd(), 'OPENAI_');
@@ -45,6 +46,7 @@ export default defineConfig(({ mode }) => {
           server.middlewares.use((req, res, next) => void handleOfficePresenceApi(req, res, next));
           server.middlewares.use((req, res, next) => void handleTeamUpdateApi(req, res, next));
           server.middlewares.use((req, res, next) => void handlePushNotificationApi(req, res, next));
+          server.middlewares.use((req, res, next) => void handlePersonalNoteApi(req, res, next));
           server.middlewares.use((req, res, next) => void handleNotificationApi(req, res, next));
           server.middlewares.use((req, res, next) => void handleClientApi(req, res, next));
           server.middlewares.use((req, res, next) => void handleMeetingApi(req, res, next));

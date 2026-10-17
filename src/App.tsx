@@ -31,8 +31,8 @@ interface AuthStatus {
 }
 
 const INITIAL_QUOTES_GMAIL_RETURN = new URLSearchParams(window.location.search).get("quotes-gmail");
-const INITIAL_PUSH_TARGET = new URLSearchParams(window.location.search).has("update") || new URLSearchParams(window.location.search).has("notifications");
-const INITIAL_COMMAND_TAB = INITIAL_QUOTES_GMAIL_RETURN ? "quotes" : new URLSearchParams(window.location.search).has("notifications") ? "settings" : undefined;
+const INITIAL_PUSH_TARGET = new URLSearchParams(window.location.search).has("update") || new URLSearchParams(window.location.search).has("notifications") || new URLSearchParams(window.location.search).has("note");
+const INITIAL_COMMAND_TAB = INITIAL_QUOTES_GMAIL_RETURN ? "quotes" : new URLSearchParams(window.location.search).has("note") ? "notes" : new URLSearchParams(window.location.search).has("notifications") ? "settings" : undefined;
 
 export default function App() {
   const reducedMotion = useReducedMotion();

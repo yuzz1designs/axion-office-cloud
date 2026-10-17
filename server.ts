@@ -18,6 +18,7 @@ import { handleQuoteApi } from "./src/server/quoteApi";
 import { handleGmailQuotesApi } from "./src/server/gmailQuotesApi";
 import { handleTeamUpdateApi } from "./src/server/teamUpdateApi";
 import { handlePushNotificationApi } from "./src/server/pushNotificationApi";
+import { handlePersonalNoteApi } from "./src/server/personalNoteApi";
 
 const app = express();
 const port = Number(process.env.PORT || 3000);
@@ -40,6 +41,7 @@ app.use((req, res, next) => void handleTeamActivityApi(req, res, next));
 app.use((req, res, next) => void handleOfficePresenceApi(req, res, next));
 app.use((req, res, next) => void handleTeamUpdateApi(req, res, next));
 app.use((req, res, next) => void handlePushNotificationApi(req, res, next));
+app.use((req, res, next) => void handlePersonalNoteApi(req, res, next));
 app.use((req, res, next) => void handleNotificationApi(req, res, next));
 app.use((req, res, next) => void handleClientApi(req, res, next));
 app.use((req, res, next) => void handleMeetingApi(req, res, next));

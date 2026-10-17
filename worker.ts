@@ -15,8 +15,11 @@ import { handleQuoteApi } from "./src/server/quoteApi";
 import { handleGmailQuotesApi } from "./src/server/gmailQuotesApi";
 import { handleTeamUpdateApi } from "./src/server/teamUpdateApi";
 import { handlePushNotificationApi } from "./src/server/pushNotificationApi";
+import { handlePersonalNoteApi } from "./src/server/personalNoteApi";
+import { getSupabaseBackend } from "./src/server/supabaseBackend";
+import { processDueNoteReminders } from "./src/server/pushNotificationStore";
 
-const handlers = [handleOfficePresenceApi, handlePushNotificationApi, handleTeamUpdateApi, handleAuthApi, handleFinanceApi, handleMeetingApi, handleClientApi, handleGmailQuotesApi, handleQuoteApi, handleNotificationApi, handleTeamActivityApi, handleGoogleOAuthApi, handleGoogleWorkspaceApi, handleGoogleDriveApi, handleGoogleSheetsApi];
+const handlers = [handleOfficePresenceApi, handlePushNotificationApi, handlePersonalNoteApi, handleTeamUpdateApi, handleAuthApi, handleFinanceApi, handleMeetingApi, handleClientApi, handleGmailQuotesApi, handleQuoteApi, handleNotificationApi, handleTeamActivityApi, handleGoogleOAuthApi, handleGoogleWorkspaceApi, handleGoogleDriveApi, handleGoogleSheetsApi];
 const server = createServer(async (req, res) => {
   res.setHeader("Content-Type", "application/json; charset=utf-8");
   res.setHeader("Cache-Control", "no-store");
@@ -48,5 +51,9 @@ export default {
     }
     if (!["GET", "HEAD", "OPTIONS"].includes(request.method) && request.headers.get("Origin") && request.headers.get("Origin") !== url.origin) return Response.json({ error: "Origem não autorizada." }, { status: 403 });
     return handleAsNodeRequest(8080, request);
+  },
+  async scheduled(_controller: unknown, _env: unknown, ctx: { waitUntil(promise: Promise<unknown>): void }) {
+    const backend = getSupabaseBackend();
+    if (backend) ctx.waitUntil(processDueNoteReminders(backend.client).catch((error) => console.error("[NOTE REMINDERS]", error instanceof Error ? error.message : error)));
   },
 };

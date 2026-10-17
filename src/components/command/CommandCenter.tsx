@@ -28,6 +28,8 @@ import NotificationsScreen from "../notifications/NotificationsScreen";
 import SidebarNav, { NavTabId } from "../navigation/SidebarNav";
 import SettingsPage from "../settings/SettingsPage";
 import MeetingInviteBanner from "./MeetingInviteBanner";
+import NotesScreen from "../notes/NotesScreen";
+import NoteReminderBanner from "../notes/NoteReminderBanner";
 import OfficePresence, { useOfficePresence } from "./OfficePresence";
 import { officeSessionTime } from "../../lib/officePresence";
 import type { AxionProfile } from "../../types/profile";
@@ -608,6 +610,17 @@ export default function CommandCenter({
               isLight={isLight}
             />
           </motion.div>
+        ) : activeTab === "notes" ? (
+          <motion.div
+            key="notes-tab-view"
+            initial={{ opacity: 0, y: 8, filter: "blur(4px)" }}
+            animate={{ opacity: 1, y: 0, filter: "blur(0px)" }}
+            exit={{ opacity: 0, y: -8, filter: "blur(4px)" }}
+            transition={{ duration: 0.3, ease: [0.16, 1, 0.3, 1] }}
+            className="w-full h-full overflow-y-auto pr-2 relative z-10"
+          >
+            <NotesScreen currentUserId={profile?.id || ""} accent={currentAccent.hex} onBack={() => { const url = new URL(window.location.href); url.searchParams.delete("note"); window.history.replaceState({}, "", url); setActiveTab("overview"); }} />
+          </motion.div>
         ) : activeTab === "settings" ? (
           <motion.div
             key="settings-tab-view"
@@ -704,6 +717,15 @@ export default function CommandCenter({
                 isLight={isLight}
               />
             )}
+            <NoteReminderBanner
+              accent={currentAccent.hex}
+              onOpen={(id) => {
+                const url = new URL(window.location.href);
+                url.searchParams.set("note", id);
+                window.history.replaceState({}, "", url);
+                setActiveTab("notes");
+              }}
+            />
         
         {/* ==================== TOP ROW (HEADER & DATE) ==================== */}
         <div className="flex flex-col md:flex-row justify-between items-start gap-4">
