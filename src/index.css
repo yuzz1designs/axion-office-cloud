@@ -598,3 +598,19 @@ body[data-theme="light"] .axion-brand-title,
   }
 
 }
+
+/* Continuous home orbits are independent of pointer-driven React renders. */
+@keyframes homeOrbit { to { transform: rotate(360deg); } }
+.home-orbit { animation: homeOrbit 45s linear infinite; }
+.home-orbit-middle { animation-duration: 65s; animation-direction: reverse; }
+.home-orbit-outer { animation-duration: 90s; }
+
+@media (hover: hover) and (pointer: fine) and (prefers-reduced-motion: no-preference) {
+  :where(button:not(:disabled)) {
+    transition: translate 180ms ease, filter 180ms ease, box-shadow 180ms ease, background-color 180ms ease, border-color 180ms ease, color 180ms ease;
+  }
+  :where(button:not(:disabled)):hover { translate: 0 -2px; filter: brightness(1.12); }
+  :where(button:not(:disabled)):active { translate: 0 0; filter: brightness(0.95); }
+}
+:where(button):focus-visible { outline: 2px solid var(--axion-accent, #00f0ff); outline-offset: 3px; }
+@media (prefers-reduced-motion: reduce) { .home-orbit { animation: none; } }

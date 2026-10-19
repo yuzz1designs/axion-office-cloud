@@ -130,6 +130,24 @@ export async function deleteTeamUpdate(client: SupabaseClient, userId: string, u
   return { id: update.id as string, title: update.title as string };
 }
 
+export async function deleteTeamUpdateMedia(client: SupabaseClient, userId: string, updateId: string, mediaId: string) {
+  const targetWorkspaceId = await workspaceId(client, userId);
+  const { data: update, error: updateError } = await client.from("team_updates").select("id")
+    .eq("id", updateId).eq("workspace_id", targetWorkspaceId).eq("author_user_id", userId).single();
+  if (updateError || !update) throw new Error("TEAM_UPDATE_NOT_FOUND");
+  const { data: asset, error } = await client.from("file_assets").select("id,container,object_id")
+    .eq("id", mediaId).eq("workspace_id", targetWorkspaceId).eq("entity_type", "team_update").eq("entity_id", updateId).maybeSingle();
+  if (error) throw new Error(`TEAM_UPDATE_MEDIA_READ_FAILED:${error.message}`);
+  // Idempotent removal supports retrying a save after a dropped connection.
+  if (!asset) return;
+  const { error: deleteError } = await client.from("file_assets").delete()
+    .eq("id", asset.id).eq("workspace_id", targetWorkspaceId).eq("entity_type", "team_update").eq("entity_id", updateId);
+  if (deleteError) throw new Error(`TEAM_UPDATE_MEDIA_DELETE_FAILED:${deleteError.message}`);
+  const { error: storageError } = await client.storage.from(asset.container).remove([asset.object_id]);
+  if (storageError) console.error("[TEAM UPDATE STORAGE CLEANUP]", storageError.message);
+  await client.from("team_updates").update({ updated_at: new Date().toISOString() }).eq("id", updateId).eq("workspace_id", targetWorkspaceId);
+}
+
 export async function markTeamUpdateViewed(client: SupabaseClient, userId: string, updateId: string): Promise<TeamUpdateViewer | null> {
   const targetWorkspaceId = await workspaceId(client, userId);
   const { data: update, error: updateError } = await client.from("team_updates").select("author_user_id").eq("id", updateId).eq("workspace_id", targetWorkspaceId).single();

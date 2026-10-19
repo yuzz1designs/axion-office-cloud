@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from "react";
 import { motion, AnimatePresence } from "motion/react";
 import AxionLogo from "../ui/AxionLogo";
-import { Cloud, CloudRain, LoaderCircle, Settings2, Sun, X } from "lucide-react";
+import { LoaderCircle } from "lucide-react";
 import { useLanguage } from "../../i18n/LanguageContext";
 
 interface WelcomeScreenProps {
@@ -53,9 +53,6 @@ const WEATHER_MODES: Record<WeatherType, WeatherConfig> = {
 };
 
 const LISBON_COORDINATES = { latitude: 38.7223, longitude: -9.1393 };
-const WEATHER_BACKGROUND_STORAGE_KEY = "axion_welcome_weather_background_linked";
-const LEGACY_WEATHER_BACKGROUND_STORAGE_KEY = "axion_welcome_weather_enabled";
-
 const getWeatherType = (weatherCode: number): WeatherType => {
   if (weatherCode === 0) return "sunny";
   if ([1, 2, 3, 45, 48].includes(weatherCode)) return "cloudy";
@@ -106,13 +103,6 @@ export default function WelcomeScreen({ onEnter }: WelcomeScreenProps) {
   const [weather, setWeather] = useState<WeatherType>("sunny");
   const [weatherReading, setWeatherReading] = useState<WeatherReading | null>(null);
   const [isWeatherLoading, setIsWeatherLoading] = useState(true);
-  const [isWeatherBackgroundLinked, setIsWeatherBackgroundLinked] = useState(() => {
-    if (typeof window === "undefined") return true;
-    const storedPreference = window.localStorage.getItem(WEATHER_BACKGROUND_STORAGE_KEY)
-      ?? window.localStorage.getItem(LEGACY_WEATHER_BACKGROUND_STORAGE_KEY);
-    return storedPreference !== "false";
-  });
-  const [isSettingsOpen, setIsSettingsOpen] = useState(false);
   const [time, setTime] = useState<string>("");
   const [dateStr, setDateStr] = useState<string>("");
   const [mouseOffset, setMouseOffset] = useState({ x: 0, y: 0 });
@@ -237,12 +227,6 @@ export default function WelcomeScreen({ onEnter }: WelcomeScreenProps) {
     onEnter();
   };
 
-  const handleWeatherBackgroundLinkChange = () => {
-    const nextValue = !isWeatherBackgroundLinked;
-    setIsWeatherBackgroundLinked(nextValue);
-    window.localStorage.setItem(WEATHER_BACKGROUND_STORAGE_KEY, String(nextValue));
-  };
-
   const currentConfig = WEATHER_MODES[weather];
   const currentHour = Number(time.slice(0, 2));
   const isNight = Number.isFinite(currentHour) && (currentHour >= 20 || currentHour < 7);
@@ -254,9 +238,8 @@ export default function WelcomeScreen({ onEnter }: WelcomeScreenProps) {
     >
       {/* Dynamic Weather Background Layer */}
       <div className="absolute inset-0 w-full h-full z-0 overflow-hidden bg-[#050609]">
-        {/* Weather imagery or the private abstract alternative. */}
+        {/* Background follows the current local weather. */}
         <AnimatePresence mode="popLayout">
-          {isWeatherBackgroundLinked ? (
             <motion.img
               key={`weather-${weather}`}
               src={currentConfig.imageUrl}
@@ -268,27 +251,11 @@ export default function WelcomeScreen({ onEnter }: WelcomeScreenProps) {
               className="absolute inset-0 w-full h-full object-cover z-0 contrast-[1.06]"
               style={{ filter: `brightness(${currentConfig.imageBrightness})` }}
             />
-          ) : (
-            <motion.div
-              key="abstract-background"
-              initial={{ opacity: 0 }}
-              animate={{ opacity: 1 }}
-              exit={{ opacity: 0 }}
-              transition={{ duration: 1.2 }}
-              className="welcome-abstract-background"
-              aria-hidden="true"
-            >
-              <span className="welcome-abstract-orb welcome-abstract-orb-a" />
-              <span className="welcome-abstract-orb welcome-abstract-orb-b" />
-              <span className="welcome-abstract-orb welcome-abstract-orb-c" />
-              <span className="welcome-abstract-wave" />
-            </motion.div>
-          )}
         </AnimatePresence>
 
         {/* Weather-specific immersion layer. These effects remain decorative and input-transparent. */}
         <AnimatePresence mode="wait">
-          {isWeatherBackgroundLinked && weather === "sunny" && (
+          {weather === "sunny" && (
             <motion.div
               key="sun-effects"
               initial={{ opacity: 0 }}
@@ -305,7 +272,7 @@ export default function WelcomeScreen({ onEnter }: WelcomeScreenProps) {
             </motion.div>
           )}
 
-          {isWeatherBackgroundLinked && weather === "cloudy" && (
+          {weather === "cloudy" && (
             <motion.div
               key="cloud-effects"
               initial={{ opacity: 0 }}
@@ -321,7 +288,7 @@ export default function WelcomeScreen({ onEnter }: WelcomeScreenProps) {
             </motion.div>
           )}
 
-          {isWeatherBackgroundLinked && weather === "rainy" && (
+          {weather === "rainy" && (
             <motion.div
               key="rain-effects"
               initial={{ opacity: 0 }}
@@ -351,7 +318,7 @@ export default function WelcomeScreen({ onEnter }: WelcomeScreenProps) {
         </AnimatePresence>
 
         {/* Shared depth field: slow atmospheric matter suspended between the image and UI. */}
-        {isWeatherBackgroundLinked && <div className={`welcome-depth-field welcome-depth-field--${weather}`} aria-hidden="true">
+        <div className={`welcome-depth-field welcome-depth-field--${weather}`} aria-hidden="true">
           {ATMOSPHERIC_PARTICLES.map((particle) => (
             <span
               key={particle.id}
@@ -366,21 +333,21 @@ export default function WelcomeScreen({ onEnter }: WelcomeScreenProps) {
               }}
             />
           ))}
-        </div>}
+        </div>
 
         {/* Ambient base gradient blend */}
-        {isWeatherBackgroundLinked && <div 
+        <div
           className={`absolute inset-0 bg-gradient-to-tr ${currentConfig.fallbackGradient} mix-blend-multiply opacity-45 transition-all duration-1000 ease-in-out z-[1]`} 
-        />}
+        />
         
         {/* Sophisticated Cinematic Glassmorphic Blur Overlays */}
         <div 
           className="absolute inset-0 bg-slate-950/50 transition-opacity duration-1000 z-[2] pointer-events-none"
-          style={{ opacity: isWeatherBackgroundLinked ? currentConfig.overlayOpacity : 0.12 }}
+          style={{ opacity: currentConfig.overlayOpacity }}
         />
-        <div className={`absolute inset-0 bg-gradient-to-b from-transparent via-transparent z-[2] pointer-events-none ${isWeatherBackgroundLinked ? "to-[#050609]/95" : "to-[#050609]/55"}`} />
-        {isWeatherBackgroundLinked && <div className={`welcome-time-grade ${isNight ? "is-night" : "is-day"}`} aria-hidden="true" />}
-        <div className={`welcome-cinematic-vignette ${isWeatherBackgroundLinked ? "" : "is-abstract"}`} aria-hidden="true" />
+        <div className={`absolute inset-0 bg-gradient-to-b from-transparent via-transparent z-[2] pointer-events-none to-[#050609]/95`} />
+        <div className={`welcome-time-grade ${isNight ? "is-night" : "is-day"}`} aria-hidden="true" />
+        <div className="welcome-cinematic-vignette" aria-hidden="true" />
 
         {/* Floating parallax triangles */}
         {FLOATING_TRIANGLES.map((item) => (
@@ -468,111 +435,7 @@ export default function WelcomeScreen({ onEnter }: WelcomeScreenProps) {
               <span className="tracking-[0.25em] font-medium text-[10px]">AXION OFFICE</span>
             </div>
 
-            {/* Live Weather Atmosphere Stats & Toggle Controls */}
-            <div className="flex items-center gap-4 font-sans">
-              {/* Live weather state, with manual preview controls for the three atmospheres */}
-              {isWeatherBackgroundLinked && <div className="flex bg-white/5 border border-white/10 rounded-full p-0.5 backdrop-blur-md">
-                <button
-                  onClick={() => setWeather("sunny")}
-                  onMouseEnter={() => setIsHovering(true)}
-                  onMouseLeave={() => setIsHovering(false)}
-                  className={`flex items-center gap-1.5 px-3 py-1 rounded-full text-[9px] tracking-[0.15em] font-medium transition-all duration-300 ${
-                    weather === "sunny"
-                      ? "bg-white/15 text-white font-semibold shadow-sm"
-                      : "text-white hover:text-white"
-                  }`}
-                >
-                  <Sun size={11} className="text-white" />
-                  SOL
-                </button>
-                <button
-                  onClick={() => setWeather("cloudy")}
-                  onMouseEnter={() => setIsHovering(true)}
-                  onMouseLeave={() => setIsHovering(false)}
-                  className={`flex items-center gap-1.5 px-3 py-1 rounded-full text-[9px] tracking-[0.15em] font-medium transition-all duration-300 ${
-                    weather === "cloudy"
-                      ? "bg-white/15 text-white font-semibold shadow-sm"
-                      : "text-white hover:text-white"
-                  }`}
-                >
-                  <Cloud size={11} className="text-white" />
-                  NUBLADO
-                </button>
-                <button
-                  onClick={() => setWeather("rainy")}
-                  onMouseEnter={() => setIsHovering(true)}
-                  onMouseLeave={() => setIsHovering(false)}
-                  className={`flex items-center gap-1.5 px-3 py-1 rounded-full text-[9px] tracking-[0.15em] font-medium transition-all duration-300 ${
-                    weather === "rainy"
-                      ? "bg-white/15 text-white font-semibold shadow-sm"
-                      : "text-white hover:text-white"
-                  }`}
-                >
-                  <CloudRain size={11} className="text-white" />
-                  CHUVA
-                </button>
-              </div>}
-              <button
-                type="button"
-                onClick={() => setIsSettingsOpen((current) => !current)}
-                onMouseEnter={() => setIsHovering(true)}
-                onMouseLeave={() => setIsHovering(false)}
-                className="group flex items-center gap-2 px-2 py-1 text-[9px] tracking-[0.18em] uppercase text-white transition-opacity duration-300 hover:opacity-65"
-                aria-expanded={isSettingsOpen}
-                aria-label="Abrir definições da Welcome Screen"
-              >
-                <Settings2 size={13} className="transition-transform duration-500 group-hover:rotate-90" />
-                <span className="hidden sm:inline">Definições</span>
-              </button>
-            </div>
           </motion.div>
-        )}
-      </AnimatePresence>
-
-      <AnimatePresence>
-        {isSettingsOpen && !isExiting && (
-          <motion.aside
-            initial={{ opacity: 0, y: -8, scale: 0.98 }}
-            animate={{ opacity: 1, y: 0, scale: 1 }}
-            exit={{ opacity: 0, y: -8, scale: 0.98 }}
-            transition={{ duration: 0.25, ease: "easeOut" }}
-            className="absolute right-6 top-24 z-30 w-[min(22rem,calc(100vw-3rem))] border border-white/15 bg-[#06080d]/90 p-5 shadow-2xl backdrop-blur-xl md:right-16"
-          >
-            <div className="mb-5 flex items-start justify-between gap-4">
-              <div>
-                <p className="text-[10px] font-medium uppercase tracking-[0.28em] text-white">Welcome Screen</p>
-                <p className="mt-1 text-xs leading-relaxed text-white/60">Personaliza a atmosfera apresentada antes de entrares no Office.</p>
-              </div>
-              <button
-                type="button"
-                onClick={() => setIsSettingsOpen(false)}
-                className="p-1 text-white transition-opacity hover:opacity-60"
-                aria-label="Fechar definições"
-              >
-                <X size={15} />
-              </button>
-            </div>
-
-            <button
-              type="button"
-              role="switch"
-              aria-checked={isWeatherBackgroundLinked}
-              onClick={handleWeatherBackgroundLinkChange}
-              className="group flex w-full items-center justify-between gap-5 border-t border-white/10 pt-4 text-left"
-            >
-              <span>
-                <span className="block text-xs font-medium text-white">Fundo associado à meteorologia</span>
-                <span className="mt-1 block text-[10px] leading-relaxed text-white/55">
-                  {isWeatherBackgroundLinked
-                    ? "O fundo acompanha o estado do tempo local. Os dados meteorológicos permanecem sempre ativos."
-                    : "O fundo abstrato está ativo. Os dados meteorológicos continuam disponíveis."}
-                </span>
-              </span>
-              <span className={`relative h-5 w-9 shrink-0 rounded-full border transition-colors duration-300 ${isWeatherBackgroundLinked ? "border-white bg-white" : "border-white/35 bg-white/5"}`}>
-                <span className={`absolute top-1/2 h-3 w-3 -translate-y-1/2 rounded-full transition-all duration-300 ${isWeatherBackgroundLinked ? "left-[19px] bg-[#050609]" : "left-[3px] bg-white/70"}`} />
-              </span>
-            </button>
-          </motion.aside>
         )}
       </AnimatePresence>
 

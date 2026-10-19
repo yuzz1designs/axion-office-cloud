@@ -241,6 +241,8 @@ export default function App() {
           >
             <WelcomeScreen onEnter={() => { setEnteringOffice(true); setScreen("command-center"); }} />
           </motion.div>
+        ) : !authStatus ? (
+          <div key="loading-profile" role="status" className="flex h-full items-center justify-center text-sm text-white/60">A carregar o Office…</div>
         ) : authStatus?.authRequired ? (
           <motion.div key="axion-login" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="w-full h-full">
             <AxionLoginScreen config={supabaseConfig} desktop={desktop} onAuthenticated={() => void refreshAuthStatus()} />

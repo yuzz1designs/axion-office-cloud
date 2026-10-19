@@ -4,7 +4,7 @@ import { getSupabaseBackend } from "./supabaseBackend";
 import { getAllowedEmails } from "./supabaseConfig";
 import { recordTeamActivity } from "./teamActivityStore";
 import { MAX_TEAM_UPDATE_MEDIA_BYTES } from "./teamUpdateCore";
-import { attachTeamUpdateMedia, createTeamUpdate, deleteTeamUpdate, listTeamUpdates, markTeamUpdateViewed, updateTeamUpdate } from "./teamUpdateStore";
+import { attachTeamUpdateMedia, createTeamUpdate, deleteTeamUpdate, deleteTeamUpdateMedia, listTeamUpdates, markTeamUpdateViewed, updateTeamUpdate } from "./teamUpdateStore";
 import { dispatchTeamUpdatePush } from "./pushNotificationStore";
 
 function json(res: ServerResponse, status: number, value: unknown) { res.statusCode = status; res.setHeader("Content-Type", "application/json; charset=utf-8"); res.setHeader("Cache-Control", "no-store"); res.end(JSON.stringify(value)); }
@@ -20,6 +20,11 @@ export async function handleTeamUpdateApi(req: IncomingMessage, res: ServerRespo
     const user = await authenticateSupabaseUser(readSessionToken(req.headers.cookie), backend.client.auth, getAllowedEmails());
     if (!user) return json(res, 401, { error: "Inicia sessão com uma conta AXION autorizada." });
     if (url.pathname === "/api/team/updates" && req.method === "GET") return json(res, 200, { updates: await listTeamUpdates(backend.client, user.id) });
+    const mediaDeleteMatch = url.pathname.match(/^\/api\/team\/updates\/([^/]+)\/media\/([^/]+)$/);
+    if (mediaDeleteMatch && req.method === "DELETE") {
+      await deleteTeamUpdateMedia(backend.client, user.id, decodeURIComponent(mediaDeleteMatch[1]), decodeURIComponent(mediaDeleteMatch[2]));
+      return json(res, 200, { deleted: true });
+    }
     const updateMatch = url.pathname.match(/^\/api\/team\/updates\/([^/]+)$/);
     if (updateMatch && req.method === "PATCH") {
       const update = await updateTeamUpdate(backend.client, user.id, decodeURIComponent(updateMatch[1]), await body(req));

@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useMemo, useRef } from "react";
-import { motion, AnimatePresence, useReducedMotion } from "motion/react";
+import { motion, AnimatePresence, useReducedMotion, useMotionValue, useSpring } from "motion/react";
 import { 
   DEFAULT_APPEARANCE,
   DEFAULT_COMMAND_CENTER,
@@ -107,7 +107,10 @@ export default function CommandCenter({
   const officePresence = useOfficePresence(profile?.id);
   const ownPresence = officePresence.snapshot?.members.find((member) => member.userId === profile?.id);
   const [systemBooted, setSystemBooted] = useState(false);
-  const [mousePos, setMousePos] = useState({ x: 0, y: 0 });
+  const pointerX = useMotionValue(0);
+  const pointerY = useMotionValue(0);
+  const glowX = useSpring(pointerX, { stiffness: 30, damping: 25 });
+  const glowY = useSpring(pointerY, { stiffness: 30, damping: 25 });
   const [notesDirty, setNotesDirty] = useState(false);
 
   // Shared Global Meeting & Calendar States
@@ -249,7 +252,8 @@ export default function CommandCenter({
     const { clientWidth, clientHeight } = e.currentTarget;
     const x = (e.clientX - clientWidth / 2) / 45;
     const y = (e.clientY - clientHeight / 2) / 45;
-    setMousePos({ x, y });
+    pointerX.set(x * 0.5);
+    pointerY.set(y * 0.5);
   };
 
   const localDate = `${currentTime.getFullYear()}-${String(currentTime.getMonth() + 1).padStart(2, "0")}-${String(currentTime.getDate()).padStart(2, "0")}`;
@@ -389,14 +393,11 @@ export default function CommandCenter({
       }`} />
       
       {/* Soft central gradient orb reacting to mouse - Powered by customizable home light */}
-      <motion.div 
-        animate={{
-          x: mousePos.x * 0.5,
-          y: mousePos.y * 0.5
-        }}
-        transition={{ type: "spring", stiffness: 30, damping: 25 }}
-        className="absolute w-[650px] h-[650px] rounded-full left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 pointer-events-none transition-all duration-700"
+      <motion.div
+        className="absolute w-[650px] h-[650px] rounded-full left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 pointer-events-none transition-[background,opacity] duration-700"
         style={{
+          x: glowX,
+          y: glowY,
           background: currentAccent.glow,
           filter: "blur(140px)",
           opacity: isLight ? 0.14 : 0.22
@@ -405,7 +406,7 @@ export default function CommandCenter({
 
       {/* Top atmospheric radiant ambient light flare */}
       <div 
-        className="absolute -top-24 left-1/2 -translate-x-1/2 w-[900px] h-[350px] pointer-events-none transition-all duration-700"
+        className="absolute -top-24 left-1/2 -translate-x-1/2 w-[900px] h-[350px] pointer-events-none transition-[background,opacity] duration-700"
         style={{
           background: `radial-gradient(ellipse at center top, ${currentAccent.hex}${isLight ? "10" : "18"} 0%, transparent 70%)`
         }}
@@ -876,20 +877,16 @@ export default function CommandCenter({
                 />
 
                 {/* Inner Ring 1 (Dashed Precision Orbit) */}
-                <motion.div 
-                  animate={{ rotate: 360 }}
-                  transition={{ duration: 45, repeat: Infinity, ease: "linear" }}
-                  className="absolute w-[230px] h-[230px] rounded-full border border-dashed transition-all duration-500"
+                <div
+                  className="home-orbit home-orbit-inner absolute w-[230px] h-[230px] rounded-full border border-dashed transition-colors duration-500"
                   style={{
                     borderColor: `${currentAccent.hex}25`
                   }}
                 />
                 
                 {/* Mid Ring 2 (Radar Track with Orbital Node Markers) */}
-                <motion.div 
-                  animate={{ rotate: -360 }}
-                  transition={{ duration: 65, repeat: Infinity, ease: "linear" }}
-                  className="absolute w-[300px] h-[300px] rounded-full border transition-all duration-500"
+                <div
+                  className="home-orbit home-orbit-middle absolute w-[300px] h-[300px] rounded-full border transition-colors duration-500"
                   style={{
                     borderColor: `${currentAccent.hex}15`
                   }}
@@ -910,13 +907,11 @@ export default function CommandCenter({
                     className="absolute right-0 top-1/2 -translate-x-1/2 -translate-y-1/2 w-1.5 h-1.5 rounded-full transition-all duration-500"
                     style={{ backgroundColor: currentAccent.hex, boxShadow: `0 0 8px ${currentAccent.hex}` }}
                   />
-                </motion.div>
+                </div>
 
                 {/* Outer Ring 3 (Wide Atmospheric Orbit - safely bounded) */}
-                <motion.div 
-                  animate={{ rotate: 360 }}
-                  transition={{ duration: 90, repeat: Infinity, ease: "linear" }}
-                  className="absolute w-[370px] h-[370px] rounded-full border border-dotted border-white/[0.05]"
+                <div
+                  className="home-orbit home-orbit-outer absolute w-[370px] h-[370px] rounded-full border border-dotted border-white/[0.05]"
                 />
               </div>
 
