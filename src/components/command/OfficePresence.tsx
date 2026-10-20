@@ -1,8 +1,9 @@
+import SessionTime from "./SessionTime";
 import UpdateComposer from "../updates/UpdateComposer";
 import { useCallback, useEffect, useState, type ReactNode } from "react";
 import { AnimatePresence, motion } from "motion/react";
 import { Clock3, Eye, FileText, Pencil, Plus, Trash2, X } from "lucide-react";
-import { isOfficeMemberOnline, officeSessionTime, type OfficePresenceSnapshot } from "../../lib/officePresence";
+import { isOfficeMemberOnline, type OfficePresenceSnapshot } from "../../lib/officePresence";
 import type { TeamUpdateItem, TeamUpdateViewer } from "../../server/teamUpdateStore";
 
 export function useOfficePresence(userId?: string) {
@@ -170,7 +171,7 @@ export default function OfficePresence({ presence, currentUserId, now, accent }:
               return <li key={member.userId} className="flex items-center gap-3 rounded-lg border border-white/5 bg-black/15 px-3 py-2">
                 <span aria-hidden="true" className={`h-2 w-2 rounded-full ${online ? "bg-emerald-400" : "bg-white/20"}`} />
                 <div className="min-w-0"><div className="text-xs text-white/85">{member.name}{member.userId === currentUserId ? " (tu)" : ""}</div><div className="text-[10px] text-white/45">{online ? "Online" : "Offline"}</div></div>
-                {online && <span className="text-xs font-mono tabular-nums text-white/70" aria-label={`Tempo de sessão de ${member.name}`}>{officeSessionTime(member, serverNow)}</span>}
+                {online && <span className="text-xs font-mono tabular-nums text-white/70" aria-label={`Tempo de sessão de ${member.name}`}>{<SessionTime member={member} offset={presence.clockOffset} />}</span>}
               </li>;
             })}
           </ul>}

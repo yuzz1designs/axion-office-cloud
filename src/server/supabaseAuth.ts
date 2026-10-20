@@ -1,3 +1,7 @@
+export class AuthServiceUnavailable extends Error {
+  constructor() { super("AUTH_SERVICE_UNAVAILABLE"); }
+}
+
 export interface AuthenticatedAxionUser {
   id: string;
   email: string;
@@ -18,7 +22,13 @@ export function readSessionToken(cookie = "") {
 export async function authenticateSupabaseUser(token: string, auth: SupabaseAuthLike, allowedEmails: string[]): Promise<AuthenticatedAxionUser | null> {
   if (!token) return null;
   const { data, error } = await auth.getUser(token);
-  const user = data.user;
+  if (error) {
+    const status = Number((error as { status?: number }).status || 0);
+    // A failed upstream request is not proof that the user's session expired.
+    if (![400, 401, 403, 422].includes(status)) throw new AuthServiceUnavailable();
+    return null;
+  }
+  const user = data?.user;
   const email = user?.email?.trim().toLowerCase() || "";
   const provider = user?.app_metadata?.provider;
   if (error || !user || provider !== "google" || !allowedEmails.includes(email)) return null;

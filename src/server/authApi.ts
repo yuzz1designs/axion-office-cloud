@@ -3,7 +3,7 @@ import { createHash, randomBytes } from "node:crypto";
 import { AuthProfileStore } from "./authProfileStore";
 import { attachDevice, createProfile, detectDevice, profileNeedsSetup, sanitizeProfileInput, type UserProfile } from "./authCore";
 import { getAllowedEmails } from "./supabaseConfig";
-import { authenticateSupabaseUser, readSessionToken } from "./supabaseAuth";
+import { AuthServiceUnavailable, authenticateSupabaseUser, readSessionToken } from "./supabaseAuth";
 import { getSupabaseBackend } from "./supabaseBackend";
 import { recordTeamActivity } from "./teamActivityStore";
 import { DesktopAuthHandoffStore } from "./desktopAuthHandoff";
@@ -235,7 +235,8 @@ export async function handleAuthApi(req: IncomingMessage, res: ServerResponse, n
     }
 
     return sendJson(res, 404, { error: "Not found" });
-  } catch {
+  } catch (error) {
+    if (error instanceof AuthServiceUnavailable) return sendJson(res, 503, { error: "Autenticação temporariamente indisponível. Tenta novamente." });
     return sendJson(res, 500, { error: "Não foi possível processar o perfil AXION." });
   }
 }

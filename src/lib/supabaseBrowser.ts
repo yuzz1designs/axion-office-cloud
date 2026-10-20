@@ -1,3 +1,4 @@
+import { createSessionFetch } from "./sessionFetch";
 import { createClient, type SupabaseClient } from "@supabase/supabase-js";
 
 export interface SupabasePublicConfig {
@@ -35,7 +36,7 @@ export function shouldEnterAfterOAuth(isOAuthReturn: boolean, sessionBridged: bo
 
 export function getSupabaseBrowserClient(config: SupabasePublicConfig) {
   if (!config.configured || !config.url || !config.publishableKey) return null;
-  if (!client) client = createClient(config.url, config.publishableKey, { auth: { flowType: "implicit", detectSessionInUrl: true, persistSession: true } });
+  if (!client) client = createClient(config.url, config.publishableKey, { auth: { flowType: "implicit", detectSessionInUrl: true, persistSession: true, autoRefreshToken: true } });
   return client;
 }
 
@@ -123,21 +124,72 @@ export async function consumeDesktopOAuthHandoff(config: SupabasePublicConfig, s
 export async function signOutAxionSession(config: SupabasePublicConfig) {
   const supabase = getSupabaseBrowserClient(config);
   if (supabase) await supabase.auth.signOut({ scope: "local" });
+  await sessionSync?.catch(() => undefined);
+  lastSyncedToken = ""; lastSyncedAt = 0;
   await fetch("/api/auth/session", { method: "DELETE" });
+}
+
+let sessionSync: Promise<boolean> | null = null;
+let sessionSyncForced = false;
+let lastSyncedToken = "";
+let lastSyncedAt = 0;
+
+export function synchronizeSupabaseSession(config: SupabasePublicConfig, forceRefresh = false): Promise<boolean> {
+  if (sessionSync) return forceRefresh && !sessionSyncForced
+    ? sessionSync.then(() => synchronizeSupabaseSession(config, true))
+    : sessionSync;
+  sessionSyncForced = forceRefresh;
+  sessionSync = (async () => {
+    const supabase = getSupabaseBrowserClient(config);
+    if (!supabase) return false;
+    const { data, error } = forceRefresh ? await supabase.auth.refreshSession() : await supabase.auth.getSession();
+    if (error) throw error;
+    const token = data.session?.access_token;
+    if (!token) return false;
+    if (!forceRefresh && token === lastSyncedToken && Date.now() - lastSyncedAt < 45_000) return true;
+    const response = await fetch("/api/auth/session", {
+      method: "POST", headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ accessToken: token }), signal: AbortSignal.timeout(15_000),
+    });
+    if (!response.ok) throw new Error("SESSION_SYNC_UNAVAILABLE");
+    lastSyncedToken = token; lastSyncedAt = Date.now();
+    return true;
+  })().finally(() => { sessionSync = null; });
+  return sessionSync;
+}
+
+export function installSessionFetch(config: SupabasePublicConfig) {
+  const original = window.fetch;
+  const wrapped = createSessionFetch(original.bind(window), () => synchronizeSupabaseSession(config, true), window.location.origin);
+  window.fetch = wrapped;
+  return () => { if (window.fetch === wrapped) window.fetch = original; };
 }
 
 export function subscribeSupabaseSession(config: SupabasePublicConfig, onSessionChanged: () => void) {
   const supabase = getSupabaseBrowserClient(config);
   if (!supabase) return () => undefined;
+  let stopped = false;
+  let timer: ReturnType<typeof setTimeout> | undefined;
+  const sync = () => {
+    if (stopped || document.visibilityState === "hidden") return;
+    void synchronizeSupabaseSession(config).then((ok) => {
+      if (ok && !stopped) onSessionChanged();
+    }).catch(() => { /* Preserve the current screen; retry when connectivity returns or on the next tick. */ });
+  };
   const { data } = supabase.auth.onAuthStateChange((_event, session) => {
     if (!session?.access_token) return;
-    void fetch("/api/auth/session", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ accessToken: session.access_token }),
-    }).then((response) => response.ok && onSessionChanged());
+    // Supabase holds its auth lock during callbacks. Read the latest session after it releases the lock.
+    clearTimeout(timer); timer = setTimeout(sync, 0);
   });
-  return () => data.subscription.unsubscribe();
+  const interval = window.setInterval(sync, 60_000);
+  window.addEventListener("online", sync);
+  window.addEventListener("pageshow", sync);
+  document.addEventListener("visibilitychange", sync);
+  return () => {
+    stopped = true; clearTimeout(timer); window.clearInterval(interval);
+    window.removeEventListener("online", sync); window.removeEventListener("pageshow", sync);
+    document.removeEventListener("visibilitychange", sync); data.subscription.unsubscribe();
+  };
 }
 
 export function subscribeAxionRealtime(config: SupabasePublicConfig, onChange: (table: string) => void) {

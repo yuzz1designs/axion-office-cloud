@@ -12,3 +12,17 @@ test("aceita apenas utilizadores Google presentes na allowlist", async () => {
   assert.equal(user?.id, "user-1");
   assert.equal(await authenticateSupabaseUser("token", auth, ["sousa@example.com"]), null);
 });
+
+test("temporary auth outages do not become invalid sessions", async () => {
+  for (const status of [0, 429, 500, 503]) {
+    const auth = { getUser: async () => ({ data: { user: null }, error: { status } }) };
+    await assert.rejects(authenticateSupabaseUser("token", auth, ["nelson@example.com"]), /AUTH_SERVICE_UNAVAILABLE/);
+  }
+});
+
+test("expired or revoked credentials remain unauthorized", async () => {
+  for (const status of [400, 401, 403, 422]) {
+    const auth = { getUser: async () => ({ data: { user: null }, error: { status } }) };
+    assert.equal(await authenticateSupabaseUser("token", auth, ["nelson@example.com"]), null);
+  }
+});

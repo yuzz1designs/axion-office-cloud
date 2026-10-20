@@ -3,23 +3,24 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import React, { useState, useEffect, useRef } from "react";
+import React, { useState, useEffect, useRef, lazy, Suspense } from "react";
 import type { CSSProperties } from "react";
 import { AnimatePresence, motion, useReducedMotion } from "motion/react";
 import WelcomeScreen from "./components/welcome/WelcomeScreen";
-import CommandCenter from "./components/command/CommandCenter";
 import { AppearanceSettings, CommandCenterConfig, LanguageRegionSettings } from "./types/settings";
 import { ACCENT_COLOR_OPTIONS, DEFAULT_APPEARANCE, DEFAULT_COMMAND_CENTER, DEFAULT_LANGUAGE_REGION } from "./data/settingsMockData";
 import { LanguageProvider } from "./i18n/LanguageContext";
 import type { AxionProfile } from "./types/profile";
 import AxionLoginScreen from "./components/auth/AxionLoginScreen";
-import { bridgeSupabaseSession, completeDesktopOAuthHandoff, getDesktopOAuthReturnState, hasSupabaseOAuthReturn, isAxionDesktop, shouldEnterAfterOAuth, signOutAxionSession, subscribeAxionRealtime, subscribeSupabaseSession, type SupabasePublicConfig } from "./lib/supabaseBrowser";
+import { installSessionFetch, bridgeSupabaseSession, completeDesktopOAuthHandoff, getDesktopOAuthReturnState, hasSupabaseOAuthReturn, isAxionDesktop, shouldEnterAfterOAuth, signOutAxionSession, subscribeAxionRealtime, subscribeSupabaseSession, type SupabasePublicConfig } from "./lib/supabaseBrowser";
 import { normalizeAppearanceSettings } from "./lib/appearance";
 import { sanitizeCommandCenterConfig, sanitizeLanguageRegionSettings } from "./components/settings/settingsCore";
 import { AivaSessionProvider } from "./components/aiva/AivaSessionProvider";
 import { AIVA_ENABLED } from "./lib/features";
-import MobileOffice from "./components/mobile/MobileOffice";
 import { useMobileLayout } from "./lib/mobileLayout";
+
+const CommandCenter = lazy(() => import("./components/command/CommandCenter"));
+const MobileOffice = lazy(() => import("./components/mobile/MobileOffice"));
 
 interface AuthStatus {
   authConfigured?: boolean;
@@ -154,12 +155,14 @@ export default function App() {
 
   useEffect(() => {
     if (!supabaseConfig.configured) return;
-    const stopSession = subscribeSupabaseSession(supabaseConfig, () => void refreshAuthStatus());
+    const restoreFetch = installSessionFetch(supabaseConfig);
+    const refresh = () => { void refreshAuthStatus().catch(() => undefined); };
+    const stopSession = subscribeSupabaseSession(supabaseConfig, refresh);
     const stopRealtime = subscribeAxionRealtime(supabaseConfig, (table) => {
-      if (table === "profiles") void refreshAuthStatus();
+      if (table === "profiles") refresh();
       window.dispatchEvent(new CustomEvent("axion:realtime", { detail: { table } }));
     });
-    return () => { stopSession(); stopRealtime(); };
+    return () => { stopSession(); stopRealtime(); restoreFetch(); };
   }, [supabaseConfig.configured, supabaseConfig.url, supabaseConfig.publishableKey]);
 
   const handleAppearanceChange = (updated: AppearanceSettings) => {
@@ -188,6 +191,7 @@ export default function App() {
 
   return (
     <LanguageProvider language={languageRegion.language}>
+    <Suspense fallback={<div role="status" className="grid h-screen place-items-center bg-[#050609] text-sm text-white/60">A carregar o Office…</div>}>
     <div 
       id="axion-office-application-root" 
       data-theme={isLight ? "light" : "dark"}
@@ -308,6 +312,7 @@ export default function App() {
         </>}
       </motion.div>}
     </div>
+    </Suspense>
     </LanguageProvider>
   );
 }

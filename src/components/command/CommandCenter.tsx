@@ -1,4 +1,6 @@
-import React, { useState, useEffect, useMemo, useRef } from "react";
+import { createRefreshQueue } from "../../lib/refreshQueue";
+import SessionTime from "./SessionTime";
+import React, { useState, useEffect, useMemo, useRef, lazy, Suspense } from "react";
 import { motion, AnimatePresence, useReducedMotion, useMotionValue, useSpring } from "motion/react";
 import { 
   DEFAULT_APPEARANCE,
@@ -14,24 +16,12 @@ import {
 import { AppearanceSettings, CommandCenterConfig, LanguageRegionSettings } from "../../types/settings";
 import { useLanguage } from "../../i18n/LanguageContext";
 import AxionLogo from "../ui/AxionLogo";
-import AivaOverviewScreen from "../aiva/AivaOverviewScreen";
 import AivaPanelTransition from "../aiva/AivaPanelTransition";
 import { useAivaSession } from "../aiva/AivaSessionProvider";
-import UserProfileScreen from "../profile/UserProfileScreen";
-import DatabaseScreen from "../database/DatabaseScreen";
-import DocumentRepositoryScreen from "../documents/DocumentRepositoryScreen";
-import ClientsScreen from "../clients/ClientsScreen";
-import CalendarMeetingsScreen from "../calendar/CalendarMeetingsScreen";
-import PaymentsScreen from "../payments/PaymentsScreen";
-import QuotesScreen from "../quotes/QuotesScreen";
-import NotificationsScreen from "../notifications/NotificationsScreen";
 import SidebarNav, { NavTabId } from "../navigation/SidebarNav";
-import SettingsPage from "../settings/SettingsPage";
 import MeetingInviteBanner from "./MeetingInviteBanner";
-import NotesScreen from "../notes/NotesScreen";
 import NoteReminderBanner from "../notes/NoteReminderBanner";
 import OfficePresence, { useOfficePresence } from "./OfficePresence";
-import { officeSessionTime } from "../../lib/officePresence";
 import type { AxionProfile } from "../../types/profile";
 import type { FinancePayload } from "../../types/finance";
 import type { TeamActivityItem } from "../../server/teamActivityStore";
@@ -53,6 +43,18 @@ import {
   MapPin,
   PieChart
 } from "lucide-react";
+
+const AivaOverviewScreen = lazy(() => import("../aiva/AivaOverviewScreen"));
+const UserProfileScreen = lazy(() => import("../profile/UserProfileScreen"));
+const DatabaseScreen = lazy(() => import("../database/DatabaseScreen"));
+const DocumentRepositoryScreen = lazy(() => import("../documents/DocumentRepositoryScreen"));
+const ClientsScreen = lazy(() => import("../clients/ClientsScreen"));
+const CalendarMeetingsScreen = lazy(() => import("../calendar/CalendarMeetingsScreen"));
+const PaymentsScreen = lazy(() => import("../payments/PaymentsScreen"));
+const QuotesScreen = lazy(() => import("../quotes/QuotesScreen"));
+const NotificationsScreen = lazy(() => import("../notifications/NotificationsScreen"));
+const SettingsPage = lazy(() => import("../settings/SettingsPage"));
+const NotesScreen = lazy(() => import("../notes/NotesScreen"));
 
 interface CommandCenterProps {
   initialTab?: NavTabId;
@@ -195,12 +197,11 @@ export default function CommandCenter({
     document.body.classList.remove("theme-light");
   }, []);
 
-  // Keep the real clock and the current Office session duration synchronized.
+  // Dashboard dates/notifications need minute-level updates; second counters render independently.
   useEffect(() => {
-    const timer = setInterval(() => {
-      const now = Date.now();
-      setCurrentTime(new Date(now));
-    }, 1000);
+    const update = () => { if (document.visibilityState !== "hidden") setCurrentTime(new Date()); };
+    const timer = setInterval(update, 30_000);
+    document.addEventListener("visibilitychange", update);
     
     // Start the panel reveal as soon as the dashboard mounts.
     const bootTimer = setTimeout(() => {
@@ -209,42 +210,59 @@ export default function CommandCenter({
 
     return () => {
       clearInterval(timer);
+      document.removeEventListener("visibilitychange", update);
       clearTimeout(bootTimer);
     };
   }, []);
 
   useEffect(() => {
     let active = true;
-    const applyWorkspace = (status: { connected?: boolean; tasks?: IntegratedTask[]; events?: CalendarEvent[] }, platform?: { tasks?: IntegratedTask[]; events?: CalendarEvent[]; invites?: MeetingInviteNotification[] }) => {
-      if (!active) return;
-      const platformTasks = platform?.tasks || [];
-      const platformEvents = platform?.events || [];
-      setWorkspaceTasks([...platformTasks, ...(status.connected ? status.tasks || [] : []).filter((task) => !platformTasks.some((item) => item.id === task.id))]);
-      setEvents(platformEvents);
-      if (platform) setMeetingInvites(platform.invites || []);
+    let syncGoogle = true;
+    const controller = new AbortController();
+    let workspace: { connected?: boolean; tasks?: IntegratedTask[] } = {};
+    let platform: { tasks?: IntegratedTask[]; events?: CalendarEvent[]; invites?: MeetingInviteNotification[] } = {};
+    const read = async (url: string, init?: RequestInit) => {
+      const response = await fetch(url, { ...init, signal: AbortSignal.any([controller.signal, AbortSignal.timeout(15_000)]) });
+      if (!response.ok) throw new Error("OVERVIEW_UNAVAILABLE");
+      return response.json();
     };
-    const refreshOverview = async (syncGoogle = false) => {
+    const queue = createRefreshQueue(async () => {
+      if (document.visibilityState === "hidden" || !active) return;
+      const synchronize = syncGoogle; syncGoogle = false;
       const [workspaceResult, meetingsResult, financeResult, activityResult, readsResult] = await Promise.allSettled([
-        fetch(syncGoogle ? "/api/google/workspace/sync" : "/api/google/workspace/status", syncGoogle ? { method: "POST" } : undefined).then((response) => response.ok ? response.json() : null),
-        fetch("/api/meetings").then((response) => response.ok ? response.json() : null),
-        fetch("/api/finance").then((response) => response.ok ? response.json() as Promise<FinancePayload> : null),
-        fetch("/api/team/activity").then((response) => response.ok ? response.json() as Promise<{ activities: TeamActivityItem[] }> : null),
-        fetch("/api/notifications/read").then((response) => response.ok ? response.json() as Promise<{ keys: string[] }> : null),
+        read(synchronize ? "/api/google/workspace/sync" : "/api/google/workspace/status", synchronize ? { method: "POST" } : undefined),
+        read("/api/meetings"), read("/api/finance"), read("/api/team/activity"), read("/api/notifications/read"),
       ]);
       if (!active) return;
-      if (workspaceResult.status === "fulfilled" && workspaceResult.value) applyWorkspace(workspaceResult.value, meetingsResult.status === "fulfilled" ? meetingsResult.value : undefined);
-      if (financeResult.status === "fulfilled" && financeResult.value) {
-        setFinanceData(financeResult.value);
-        setMonthlyRevenue(financeResult.value.summary.monthlyRevenue || 0);
+      if (workspaceResult.status === "fulfilled") workspace = workspaceResult.value;
+      if (meetingsResult.status === "fulfilled") {
+        platform = meetingsResult.value;
+        setEvents(platform.events || []); setMeetingInvites(platform.invites || []);
       }
-      if (activityResult.status === "fulfilled" && activityResult.value) setTeamActivities(activityResult.value.activities || []);
-      if (readsResult.status === "fulfilled" && readsResult.value) setReadNotificationKeys(new Set(readsResult.value.keys || []));
+      if (workspaceResult.status === "fulfilled" || meetingsResult.status === "fulfilled") {
+        const tasks = platform.tasks || [];
+        setWorkspaceTasks([...tasks, ...(workspace.connected ? workspace.tasks || [] : []).filter((task) => !tasks.some((item) => item.id === task.id))]);
+      }
+      if (financeResult.status === "fulfilled" && financeResult.value?.summary) {
+        setFinanceData(financeResult.value); setMonthlyRevenue(financeResult.value.summary.monthlyRevenue || 0);
+      }
+      if (activityResult.status === "fulfilled") setTeamActivities(activityResult.value.activities || []);
+      if (readsResult.status === "fulfilled") setReadNotificationKeys(new Set(readsResult.value.keys || []));
+    });
+    const relevantTables = new Set(["tasks", "calendar_events", "audit_logs", "revenue_entries", "payment_schedules", "payment_transactions", "notification_reads"]);
+    const realtimeRefresh = (event: Event) => {
+      if (relevantTables.has((event as CustomEvent).detail?.table)) queue.schedule();
     };
-    void refreshOverview(false).then(() => refreshOverview(true));
-    const realtimeRefresh = () => void refreshOverview(false);
+    const resume = () => { if (document.visibilityState !== "hidden") queue.schedule(); };
+    void queue.flush();
     window.addEventListener("axion:realtime", realtimeRefresh);
-    const timer = window.setInterval(() => void refreshOverview(false), 30_000);
-    return () => { active = false; window.clearInterval(timer); window.removeEventListener("axion:realtime", realtimeRefresh); };
+    window.addEventListener("online", resume); document.addEventListener("visibilitychange", resume);
+    const timer = window.setInterval(resume, 30_000);
+    return () => {
+      active = false; queue.stop(); controller.abort(); window.clearInterval(timer);
+      window.removeEventListener("axion:realtime", realtimeRefresh);
+      window.removeEventListener("online", resume); document.removeEventListener("visibilitychange", resume);
+    };
   }, []);
 
   // Track mouse coordinates to provide subtle parallax on the central Core logo
@@ -463,6 +481,7 @@ export default function CommandCenter({
       </AnimatePresence>
 
       {/* ==================== SCREEN CONTENT CONTAINER ==================== */}
+      <Suspense fallback={<div role="status" className="m-auto text-sm text-white/50">A carregar secção…</div>}>
       <AnimatePresence mode="wait">
         {activeTab === "notifications" ? (
           <motion.div
@@ -779,7 +798,7 @@ export default function CommandCenter({
               <div className="text-xs font-mono tracking-widest text-white/30 uppercase">{t("home.session")}</div>
               <div className="text-2xl font-mono font-medium text-white flex items-center gap-2.5 mt-1 justify-end">
                 <Clock size={16} style={{ color: currentAccent.hex }} className="animate-pulse" />
-                <span>{ownPresence && !officePresence.error ? officeSessionTime(ownPresence, currentTime.getTime() + officePresence.clockOffset) || "—" : "—"}</span>
+                <span>{<SessionTime member={officePresence.error ? undefined : ownPresence} offset={officePresence.clockOffset} />}</span>
               </div>
             </div>
 
@@ -1058,6 +1077,7 @@ export default function CommandCenter({
           </motion.div>
         )}
       </AnimatePresence>
+      </Suspense>
     </div>
     </>
   );
